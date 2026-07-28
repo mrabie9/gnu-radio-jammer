@@ -1,0 +1,92 @@
+id: gpsk_comms_aj_command_tx
+label: AJ Command TX
+category: '[gpsk_comms]'
+
+templates:
+  imports: |-
+    from gpsk_comms import aj_command_tx
+    from gpsk_comms.security import load_master_key
+  make: |-
+    aj_command_tx(
+        master_key=${master_key},
+        sample_rate=${sample_rate},
+        repeat_rate=${repeat_rate},
+        spreading_factor=${spreading_factor},
+        interleave_depth=${interleave_depth},
+        dwell_us=${dwell_us},
+        hopping_enabled=${hopping_enabled},
+        hold_to_send=${hold_to_send})
+
+parameters:
+- id: master_key
+  label: Master Key
+  dtype: raw
+  default: load_master_key()
+- id: sample_rate
+  label: Sample Rate (chip rate)
+  dtype: real
+  default: samp_rate
+- id: repeat_rate
+  label: Repeat Rate (Hz)
+  dtype: real
+  default: '10'
+- id: spreading_factor
+  label: Spreading Factor
+  dtype: int
+  default: '1023'
+  options: ['127', '255', '511', '1023', '2047', '4095']
+  option_labels: ['127 (21.0 dB)', '255 (24.1 dB)', '511 (27.1 dB)', '1023 (30.1 dB)',
+    '2047 (33.1 dB)', '4095 (36.1 dB)']
+- id: interleave_depth
+  label: Interleaver Depth
+  dtype: int
+  default: '17'
+- id: dwell_us
+  label: Hop Dwell (us)
+  dtype: int
+  default: '100000'
+- id: hopping_enabled
+  label: Frequency Hopping
+  dtype: bool
+  default: 'True'
+- id: hold_to_send
+  label: Send Only While Pressed
+  dtype: bool
+  default: 'False'
+
+inputs:
+- domain: message
+  id: command
+  optional: true
+
+outputs:
+- domain: stream
+  dtype: complex
+- domain: message
+  id: diagnostics
+  optional: true
+
+documentation: |-
+  Anti-jam command transmitter.
+
+  Each command becomes an authenticated 12-byte frame carrying a monotonic
+  counter, is convolutionally coded and interleaved, then spread by a key-derived
+  Gold code and placed on a key-derived hop slot.
+
+  Spreading Factor sets the processing gain against a broadband jammer, and with
+  it the burst duration. At 1023 chips a burst lasts about 26 ms at 8 Mcps;
+  choose a lower factor when command latency matters more than jam margin.
+
+  Interleaver Depth spreads each frame's coded bits so a pulsed jammer produces
+  scattered rather than contiguous errors. Deeper is more robust and adds
+  latency.
+
+  The Master Key is required and must not be a constant in a flowgraph file.
+  Generate one with gpsk_comms.security.generate_master_key() and load it via
+  GPSK_COMMS_KEY_FILE or GPSK_COMMS_KEY. Both ends need the same key: it derives
+  the authentication tag, the spreading code, the sync word and the hop order.
+
+  Accepts the same {command, pressed} messages as the plain GMSK transmitter, so
+  Keyboard Command Source drives it unchanged.
+
+file_format: 1
