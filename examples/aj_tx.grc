@@ -6,12 +6,13 @@ options:
     cmake_opt: ''
     comment: ''
     copyright: ''
-    description: GMSK command transmitter using a standard UHD USRP Sink
+    description: Anti-jam command link loopback with a switchable jammer, no USRP
+      hardware
     gen_cmake: 'On'
     gen_linking: dynamic
     generate_options: no_gui
     hier_block_src_path: '.:'
-    id: gmsk_command_tx_uhd
+    id: aj_command_loopback
     max_nouts: '0'
     output_language: python
     placement: (0,0)
@@ -22,7 +23,7 @@ options:
     run_options: prompt
     sizing_mode: fixed
     thread_safe_setters: ''
-    title: GMSK Command TX - UHD
+    title: AJ Command Loopback
     window_size: (1000,1000)
   states:
     bus_sink: false
@@ -33,123 +34,76 @@ options:
     state: enabled
 
 blocks:
-- name: antenna
+- name: centre_freq
   id: variable
   parameters:
     comment: ''
-    value: '"TX/RX"'
+    value: 2.442e9
   states:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [704, 16]
-    rotation: 0
-    state: enabled
-- name: bandwidth
-  id: variable
-  parameters:
-    comment: ''
-    value: samp_rate
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [592, 16]
-    rotation: 0
-    state: enabled
-- name: center_freq
-  id: variable
-  parameters:
-    comment: ''
-    value: '2440000000'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [144, 16]
-    rotation: 0
-    state: enabled
-- name: clock_source
-  id: variable
-  parameters:
-    comment: ''
-    value: '"internal"'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [816, 16]
-    rotation: 0
-    state: enabled
-- name: device_addr
-  id: variable
-  parameters:
-    comment: ''
-    value: '"serial=337D3DF"'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [272, 16]
+    coordinate: [800, 24.0]
     rotation: 0
     state: enabled
 - name: gain
   id: variable
   parameters:
     comment: ''
-    value: '80'
+    value: '90'
   states:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [496, 16]
+    coordinate: [912, 24.0]
+    rotation: 0
+    state: enabled
+- name: jam_amplitude
+  id: variable
+  parameters:
+    comment: ''
+    value: '0.0'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [464, 12]
+    rotation: 0
+    state: enabled
+- name: master_key
+  id: variable
+  parameters:
+    comment: ''
+    value: generate_master_key()
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [624, 12]
     rotation: 0
     state: enabled
 - name: samp_rate
   id: variable
   parameters:
     comment: ''
-    value: '1000000'
+    value: '2000000'
   states:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [16, 16]
+    coordinate: [184, 12]
     rotation: 0
     state: enabled
-- name: time_source
+- name: spreading_factor
   id: variable
   parameters:
     comment: ''
-    value: '"internal"'
+    value: '255'
   states:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [944, 16]
-    rotation: 0
-    state: enabled
-- name: gpsk_comms_aj_command_tx_0
-  id: gpsk_comms_aj_command_tx
-  parameters:
-    affinity: ''
-    alias: ''
-    comment: ''
-    dwell_us: '100000'
-    hold_to_send: 'False'
-    hopping_enabled: 'True'
-    interleave_depth: '17'
-    master_key: load_master_key()
-    maxoutbuf: '0'
-    minoutbuf: '0'
-    repeat_rate: '10'
-    sample_rate: samp_rate
-    spreading_factor: '1023'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [304, 168.0]
+    coordinate: [304, 12]
     rotation: 0
     state: enabled
 - name: import_key
@@ -162,15 +116,38 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [184, 104.0]
+    coordinate: [168, 88.0]
     rotation: 0
     state: enabled
-- name: usrp_sink
+- name: tx
+  id: gpsk_comms_aj_command_tx
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    dwell_us: '100000'
+    hold_to_send: 'False'
+    hopping_enabled: 'False'
+    interleave_depth: '17'
+    master_key: master_key
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    repeat_rate: '20'
+    sample_rate: samp_rate
+    spreading_factor: spreading_factor
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [256, 208.0]
+    rotation: 0
+    state: enabled
+- name: uhd_usrp_sink_0
   id: uhd_usrp_sink
   parameters:
     affinity: ''
     alias: ''
-    ant0: antenna
+    ant0: '"TX/RX"'
     ant1: '"TX/RX"'
     ant10: '"TX/RX"'
     ant11: '"TX/RX"'
@@ -202,7 +179,7 @@ blocks:
     ant7: '"TX/RX"'
     ant8: '"TX/RX"'
     ant9: '"TX/RX"'
-    bw0: bandwidth
+    bw0: samp_rate
     bw1: '0'
     bw10: '0'
     bw11: '0'
@@ -234,7 +211,7 @@ blocks:
     bw7: '0'
     bw8: '0'
     bw9: '0'
-    center_freq0: center_freq
+    center_freq0: centre_freq
     center_freq1: '0'
     center_freq10: '0'
     center_freq11: '0'
@@ -267,7 +244,7 @@ blocks:
     center_freq8: '0'
     center_freq9: '0'
     clock_rate: 0e0
-    clock_source0: clock_source
+    clock_source0: ''
     clock_source1: ''
     clock_source2: ''
     clock_source3: ''
@@ -276,7 +253,7 @@ blocks:
     clock_source6: ''
     clock_source7: ''
     comment: ''
-    dev_addr: device_addr
+    dev_addr: '""'
     dev_args: ''
     gain0: gain
     gain1: '0'
@@ -426,7 +403,7 @@ blocks:
     stream_args: ''
     stream_chans: '[]'
     sync: sync
-    time_source0: time_source
+    time_source0: ''
     time_source1: ''
     time_source2: ''
     time_source3: ''
@@ -439,12 +416,12 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [664, 140.0]
+    coordinate: [640, 200.0]
     rotation: 0
     state: enabled
 
 connections:
-- [gpsk_comms_aj_command_tx_0, '0', usrp_sink, '0']
+- [tx, '0', uhd_usrp_sink_0, '0']
 
 metadata:
   file_format: 1
