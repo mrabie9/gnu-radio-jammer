@@ -1,0 +1,83 @@
+options:
+  parameters:
+    author: gpsk_comms
+    catch_exceptions: 'True'
+    category: Custom
+    description: GMSK command receiver using a standard UHD USRP Source
+    generate_options: no_gui
+    id: gmsk_command_rx_uhd
+    output_language: python
+    run: 'True'
+    title: GMSK Command RX - UHD
+  states:
+    coordinate: [8, 8]
+    rotation: 0
+    state: enabled
+blocks:
+- name: samp_rate
+  id: variable
+  parameters: {value: '1000000'}
+  states: {coordinate: [16, 16], rotation: 0, state: enabled}
+- name: center_freq
+  id: variable
+  parameters: {value: '2440000000'}
+  states: {coordinate: [144, 16], rotation: 0, state: enabled}
+- name: device_addr
+  id: variable
+  parameters: {value: '"serial=3449B99"'}
+  states: {coordinate: [272, 16], rotation: 0, state: enabled}
+- name: gain
+  id: variable
+  parameters: {value: '50'}
+  states: {coordinate: [496, 16], rotation: 0, state: enabled}
+- name: bandwidth
+  id: variable
+  parameters: {value: samp_rate}
+  states: {coordinate: [592, 16], rotation: 0, state: enabled}
+- name: antenna
+  id: variable
+  parameters: {value: '"TX/RX"'}
+  states: {coordinate: [704, 16], rotation: 0, state: enabled}
+- name: clock_source
+  id: variable
+  parameters: {value: '"internal"'}
+  states: {coordinate: [816, 16], rotation: 0, state: enabled}
+- name: time_source
+  id: variable
+  parameters: {value: '"internal"'}
+  states: {coordinate: [944, 16], rotation: 0, state: enabled}
+- name: usrp_source
+  id: uhd_usrp_source
+  parameters:
+    ant0: antenna
+    bw0: bandwidth
+    center_freq0: center_freq
+    clock_source0: clock_source
+    dev_addr: device_addr
+    gain0: gain
+    nchan: '1'
+    samp_rate: samp_rate
+    time_source0: time_source
+    type: fc32
+  states: {coordinate: [32, 144], rotation: 0, state: enabled}
+- name: rx
+  id: gpsk_comms_gmsk_command_rx
+  parameters:
+    access_code: D391DA26
+    access_code_threshold: '2'
+    bt: '0.35'
+    sample_rate: samp_rate
+    samples_per_symbol: '4'
+    watchdog_timeout: '0.5'
+  states: {coordinate: [320, 144], rotation: 0, state: enabled}
+- name: command_debug
+  id: blocks_message_debug
+  parameters:
+    en_uvec: 'True'
+    log_level: info
+  states: {coordinate: [600, 144], rotation: 0, state: enabled}
+connections:
+- [usrp_source, '0', rx, '0']
+- [rx, command, command_debug, print]
+metadata:
+  file_format: 1

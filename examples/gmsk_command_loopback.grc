@@ -1,0 +1,90 @@
+options:
+  parameters:
+    author: gpsk_comms
+    catch_exceptions: 'True'
+    category: Custom
+    description: GMSK command modem loopback without USRP hardware
+    generate_options: no_gui
+    id: gmsk_command_loopback
+    output_language: python
+    run: 'True'
+    title: GMSK Command Loopback
+  states:
+    coordinate: [8, 8]
+    rotation: 0
+    state: enabled
+blocks:
+- name: samp_rate
+  id: variable
+  parameters:
+    value: '1000000'
+  states:
+    coordinate: [184, 12]
+    rotation: 0
+    state: enabled
+- name: tx
+  id: gpsk_comms_gmsk_command_tx
+  parameters:
+    access_code: D391DA26
+    access_code_threshold: '2'
+    bt: '0.35'
+    cycle_period: '0.5'
+    demo_cycle: 'False'
+    hold_to_send: 'False'
+    repeat_rate: '10'
+    sample_rate: samp_rate
+    samples_per_symbol: '4'
+  states:
+    coordinate: [240, 160]
+    rotation: 0
+    state: enabled
+- name: rx
+  id: gpsk_comms_gmsk_command_rx
+  parameters:
+    access_code: D391DA26
+    bt: '0.35'
+    sample_rate: samp_rate
+    samples_per_symbol: '4'
+    watchdog_timeout: '0.5'
+  states:
+    coordinate: [520, 160]
+    rotation: 0
+    state: enabled
+- name: throttle
+  id: blocks_throttle2
+  parameters:
+    ignoretag: 'True'
+    limit: auto
+    maximum: '0.1'
+    samples_per_second: samp_rate
+    type: complex
+    vlen: '1'
+  states:
+    coordinate: [400, 160]
+    rotation: 0
+    state: enabled
+- name: command_strobe
+  id: blocks_message_strobe
+  parameters:
+    msg: pmt.dict_add(pmt.make_dict(), pmt.intern("command"), pmt.intern("forward"))
+    period: '1000'
+  states:
+    coordinate: [32, 240]
+    rotation: 0
+    state: enabled
+- name: command_debug
+  id: blocks_message_debug
+  parameters:
+    en_uvec: 'True'
+    log_level: info
+  states:
+    coordinate: [720, 240]
+    rotation: 0
+    state: enabled
+connections:
+- [command_strobe, strobe, tx, command]
+- [rx, command, command_debug, print]
+- [tx, '0', throttle, '0']
+- [throttle, '0', rx, '0']
+metadata:
+  file_format: 1

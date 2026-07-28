@@ -1,0 +1,78 @@
+options:
+  parameters:
+    author: gpsk_comms
+    catch_exceptions: 'True'
+    category: Custom
+    description: GMSK command transmitter using a standard UHD USRP Sink
+    generate_options: no_gui
+    id: gmsk_command_tx_uhd
+    output_language: python
+    run: 'True'
+    title: GMSK Command TX - UHD
+  states:
+    coordinate: [8, 8]
+    rotation: 0
+    state: enabled
+blocks:
+- name: samp_rate
+  id: variable
+  parameters: {value: '1000000'}
+  states: {coordinate: [16, 16], rotation: 0, state: enabled}
+- name: center_freq
+  id: variable
+  parameters: {value: '2440000000'}
+  states: {coordinate: [144, 16], rotation: 0, state: enabled}
+- name: device_addr
+  id: variable
+  parameters: {value: '"serial=337D3DF"'}
+  states: {coordinate: [272, 16], rotation: 0, state: enabled}
+- name: gain
+  id: variable
+  parameters: {value: '80'}
+  states: {coordinate: [496, 16], rotation: 0, state: enabled}
+- name: bandwidth
+  id: variable
+  parameters: {value: samp_rate}
+  states: {coordinate: [592, 16], rotation: 0, state: enabled}
+- name: antenna
+  id: variable
+  parameters: {value: '"TX/RX"'}
+  states: {coordinate: [704, 16], rotation: 0, state: enabled}
+- name: clock_source
+  id: variable
+  parameters: {value: '"internal"'}
+  states: {coordinate: [816, 16], rotation: 0, state: enabled}
+- name: time_source
+  id: variable
+  parameters: {value: '"internal"'}
+  states: {coordinate: [944, 16], rotation: 0, state: enabled}
+- name: tx
+  id: gpsk_comms_gmsk_command_tx
+  parameters:
+    access_code: D391DA26
+    bt: '0.35'
+    cycle_period: '0.5'
+    demo_cycle: 'False'
+    hold_to_send: 'True'
+    repeat_rate: '100'
+    sample_rate: samp_rate
+    samples_per_symbol: '4'
+  states: {coordinate: [288, 160], rotation: 0, state: enabled}
+- name: usrp_sink
+  id: uhd_usrp_sink
+  parameters:
+    ant0: antenna
+    bw0: bandwidth
+    center_freq0: center_freq
+    clock_source0: clock_source
+    dev_addr: device_addr
+    gain0: gain
+    nchan: '1'
+    samp_rate: samp_rate
+    time_source0: time_source
+    type: fc32
+  states: {coordinate: [552, 144], rotation: 0, state: enabled}
+connections:
+- [tx, '0', usrp_sink, '0']
+metadata:
+  file_format: 1

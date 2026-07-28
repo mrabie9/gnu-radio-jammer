@@ -1,0 +1,54 @@
+id: gpsk_comms_gmsk_command_rx
+label: GMSK Command RX
+category: '[gpsk_comms]'
+
+templates:
+  imports: from gpsk_comms import gmsk_command_rx
+  make: |-
+    gmsk_command_rx(
+        sample_rate=${sample_rate},
+        samples_per_symbol=${samples_per_symbol},
+        bt=${bt},
+        access_code=${access_code},
+        watchdog_timeout=${watchdog_timeout},
+        access_code_threshold=${access_code_threshold})
+
+parameters:
+- id: sample_rate
+  label: Sample Rate
+  dtype: real
+  default: samp_rate
+- id: samples_per_symbol
+  label: Samples/Symbol
+  dtype: int
+  default: '4'
+- id: bt
+  label: Gaussian BT
+  dtype: real
+  default: '0.35'
+- id: access_code
+  label: Access Code (hex)
+  dtype: string
+  default: D391DA26
+- id: watchdog_timeout
+  label: Watchdog Timeout (s)
+  dtype: real
+  default: '0.5'
+- id: access_code_threshold
+  label: Access Code Bit Errors
+  dtype: int
+  default: '2'
+
+inputs:
+- domain: stream
+  dtype: complex
+
+outputs:
+- domain: message
+  id: command
+  optional: true
+- domain: message
+  id: diagnostics
+  optional: true
+
+file_format: 1

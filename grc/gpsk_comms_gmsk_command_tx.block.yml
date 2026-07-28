@@ -1,0 +1,64 @@
+id: gpsk_comms_gmsk_command_tx
+label: GMSK Command TX
+category: '[gpsk_comms]'
+
+templates:
+  imports: from gpsk_comms import gmsk_command_tx
+  make: |-
+    gmsk_command_tx(
+        sample_rate=${sample_rate},
+        samples_per_symbol=${samples_per_symbol},
+        bt=${bt},
+        repeat_rate=${repeat_rate},
+        access_code=${access_code},
+        command_cycle=("forward", "backward", "right", "left") if ${demo_cycle} else None,
+        cycle_period=${cycle_period},
+        hold_to_send=${hold_to_send})
+
+parameters:
+- id: sample_rate
+  label: Sample Rate
+  dtype: real
+  default: samp_rate
+- id: samples_per_symbol
+  label: Samples/Symbol
+  dtype: int
+  default: '4'
+- id: bt
+  label: Gaussian BT
+  dtype: real
+  default: '0.35'
+- id: repeat_rate
+  label: Repeat Rate (Hz)
+  dtype: real
+  default: '10'
+- id: access_code
+  label: Access Code (hex)
+  dtype: string
+  default: D391DA26
+- id: demo_cycle
+  label: Cycle W/S/D/A
+  dtype: bool
+  default: 'False'
+- id: cycle_period
+  label: Cycle Period (s)
+  dtype: real
+  default: '0.5'
+- id: hold_to_send
+  label: Send Only While Pressed
+  dtype: bool
+  default: 'False'
+
+inputs:
+- domain: message
+  id: command
+  optional: true
+
+outputs:
+- domain: stream
+  dtype: complex
+- domain: message
+  id: diagnostics
+  optional: true
+
+file_format: 1
