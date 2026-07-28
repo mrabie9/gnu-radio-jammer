@@ -1,0 +1,104 @@
+id: gpsk_comms_aj_command_rx
+label: AJ Command RX
+category: '[gpsk_comms]'
+
+templates:
+  imports: |-
+    from gpsk_comms import aj_command_rx
+    from gpsk_comms.security import load_master_key
+  make: |-
+    aj_command_rx(
+        master_key=${master_key},
+        sample_rate=${sample_rate},
+        spreading_factor=${spreading_factor},
+        interleave_depth=${interleave_depth},
+        watchdog_timeout=${watchdog_timeout},
+        grace_period=${grace_period},
+        dwell_us=${dwell_us},
+        hopping_enabled=${hopping_enabled},
+        excision_enabled=${excision_enabled},
+        detection_threshold=${detection_threshold})
+
+parameters:
+- id: master_key
+  label: Master Key
+  dtype: raw
+  default: load_master_key()
+- id: sample_rate
+  label: Sample Rate (chip rate)
+  dtype: real
+  default: samp_rate
+- id: spreading_factor
+  label: Spreading Factor
+  dtype: int
+  default: '1023'
+  options: ['127', '255', '511', '1023', '2047', '4095']
+  option_labels: ['127 (21.0 dB)', '255 (24.1 dB)', '511 (27.1 dB)', '1023 (30.1 dB)',
+    '2047 (33.1 dB)', '4095 (36.1 dB)']
+- id: interleave_depth
+  label: Interleaver Depth
+  dtype: int
+  default: '17'
+- id: watchdog_timeout
+  label: Watchdog Timeout (s)
+  dtype: real
+  default: '1.0'
+- id: grace_period
+  label: Failsafe Grace Period (s)
+  dtype: real
+  default: '0.0'
+- id: dwell_us
+  label: Hop Dwell (us)
+  dtype: int
+  default: '100000'
+- id: hopping_enabled
+  label: Frequency Hopping
+  dtype: bool
+  default: 'True'
+- id: excision_enabled
+  label: Narrowband Excision
+  dtype: bool
+  default: 'True'
+- id: detection_threshold
+  label: Detection Threshold
+  dtype: real
+  default: '0.25'
+
+inputs:
+- domain: stream
+  dtype: complex
+
+outputs:
+- domain: message
+  id: command
+  optional: true
+- domain: message
+  id: diagnostics
+  optional: true
+
+documentation: |-
+  Anti-jam command receiver.
+
+  Narrowband excision, despreading, deinterleaving and soft-decision Viterbi
+  decoding, then an authentication and replay check. Only frames that
+  authenticate are published, so a jammer cannot inject a command no matter how
+  much power it applies.
+
+  Every parameter except Failsafe Grace Period must match the transmitter.
+
+  Failsafe Grace Period extends the watchdog before 'stop' is commanded. It
+  defaults to zero, meaning stop immediately on loss of link. Raise it only
+  deliberately: a moving vehicle continues under its last command for this long
+  after the link drops. It must also exceed the re-acquisition gap of a band
+  escape (roughly 50-200 ms with one radio per node), otherwise the failsafe
+  fires during a legitimate band change.
+
+  Detection Threshold is the normalised preamble correlation required to accept
+  a burst, between 0 and 1. Lowering it finds weaker bursts at the cost of more
+  false alarms; false alarms are harmless in that they fail authentication, but
+  they consume processing.
+
+  The diagnostics port reports per-frame events including auth_failure, which is
+  what both heavy jamming and an active forgery attempt look like.
+
+file_format: 1

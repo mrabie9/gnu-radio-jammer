@@ -1,0 +1,151 @@
+options:
+  parameters:
+    author: gpsk_comms
+    catch_exceptions: 'True'
+    category: Custom
+    description: Anti-jam command link loopback with a switchable jammer, no USRP hardware
+    generate_options: no_gui
+    id: aj_command_loopback
+    output_language: python
+    run: 'True'
+    title: AJ Command Loopback
+  states:
+    coordinate: [8, 8]
+    rotation: 0
+    state: enabled
+blocks:
+- name: samp_rate
+  id: variable
+  parameters:
+    value: '2000000'
+  states:
+    coordinate: [184, 12]
+    rotation: 0
+    state: enabled
+- name: spreading_factor
+  id: variable
+  parameters:
+    value: '255'
+  states:
+    coordinate: [304, 12]
+    rotation: 0
+    state: enabled
+- name: jam_amplitude
+  id: variable
+  parameters:
+    value: '0.0'
+  states:
+    coordinate: [464, 12]
+    rotation: 0
+    state: enabled
+- name: master_key
+  id: variable
+  parameters:
+    value: generate_master_key()
+  states:
+    coordinate: [624, 12]
+    rotation: 0
+    state: enabled
+- name: import_key
+  id: import
+  parameters:
+    imports: from gpsk_comms.security import generate_master_key, load_master_key
+  states:
+    coordinate: [8, 76]
+    rotation: 0
+    state: enabled
+- name: tx
+  id: gpsk_comms_aj_command_tx
+  parameters:
+    dwell_us: '100000'
+    hold_to_send: 'False'
+    hopping_enabled: 'False'
+    interleave_depth: '17'
+    master_key: master_key
+    repeat_rate: '20'
+    sample_rate: samp_rate
+    spreading_factor: spreading_factor
+  states:
+    coordinate: [240, 160]
+    rotation: 0
+    state: enabled
+- name: rx
+  id: gpsk_comms_aj_command_rx
+  parameters:
+    detection_threshold: '0.25'
+    dwell_us: '100000'
+    excision_enabled: 'True'
+    grace_period: '0.0'
+    hopping_enabled: 'False'
+    interleave_depth: '17'
+    master_key: master_key
+    sample_rate: samp_rate
+    spreading_factor: spreading_factor
+    watchdog_timeout: '1.0'
+  states:
+    coordinate: [744, 160]
+    rotation: 0
+    state: enabled
+- name: jammer
+  id: analog_sig_source_x
+  parameters:
+    amp: jam_amplitude
+    freq: samp_rate*0.13
+    offset: '0'
+    samp_rate: samp_rate
+    type: complex
+    waveform: analog.GR_COS_WAVE
+  states:
+    coordinate: [240, 296]
+    rotation: 0
+    state: enabled
+- name: combiner
+  id: blocks_add_xx
+  parameters:
+    num_inputs: '2'
+    type: complex
+    vlen: '1'
+  states:
+    coordinate: [496, 200]
+    rotation: 0
+    state: enabled
+- name: throttle
+  id: blocks_throttle2
+  parameters:
+    ignoretag: 'True'
+    limit: auto
+    maximum: '0.1'
+    samples_per_second: samp_rate
+    type: complex
+    vlen: '1'
+  states:
+    coordinate: [624, 200]
+    rotation: 0
+    state: enabled
+- name: command_strobe
+  id: blocks_message_strobe
+  parameters:
+    msg: pmt.dict_add(pmt.make_dict(), pmt.intern("command"), pmt.intern("forward"))
+    period: '1000'
+  states:
+    coordinate: [32, 240]
+    rotation: 0
+    state: enabled
+- name: command_debug
+  id: blocks_message_debug
+  parameters:
+    en_uvec: 'True'
+    log_level: info
+  states:
+    coordinate: [968, 200]
+    rotation: 0
+    state: enabled
+connections:
+- [command_strobe, strobe, tx, command]
+- [rx, command, command_debug, print]
+- [tx, '0', combiner, '0']
+- [jammer, '0', combiner, '1']
+- [combiner, '0', throttle, '0']
+- [throttle, '0', rx, '0']
+metadata:
+  file_format: 1

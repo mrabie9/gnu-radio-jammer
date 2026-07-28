@@ -2,3 +2,7 @@ build/
 __pycache__/
 *.py[cod]
 
+# Link key material. The anti-jam link's entire forgery resistance rests on
+# these staying secret; a committed key is a compromised key.
+*.key
+link.key
