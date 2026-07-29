@@ -159,6 +159,27 @@ def derive_keys(master_key, allow_insecure=False):
     )
 
 
+#: Published master key for the unkeyed rungs of the feature ladder (levels 0
+#: and 1). It is a constant in a public repository and provides no secrecy
+#: whatsoever -- that is the point. Those levels exist to prove the radio works
+#: before any key is involved, so the frame tag degrades to a plain 32-bit
+#: integrity check and the sync word to a public constant. Nothing that derives
+#: from this key resists an adversary; :func:`derive_keys` guards the real path.
+PUBLIC_MASTER_KEY = hashlib.sha256(b"gpsk_comms/public-ladder/v1").digest()
+
+
+def public_keys():
+    """Return the published key set used by ladder levels 0 and 1.
+
+    Having the unkeyed levels carry a full key set rather than special-casing
+    them keeps one code path through the transmitter and receiver: between level
+    1 and level 2 the *secrecy* of the key changes and nothing else does, so a
+    failure appearing at level 2 is a failure of authentication and not of some
+    separate unkeyed code path that only runs at the bottom of the ladder.
+    """
+    return derive_keys(PUBLIC_MASTER_KEY)
+
+
 def frame_mac(mac_key, body):
     """Return the truncated HMAC-SHA256 tag authenticating ``body``."""
     return hmac.new(mac_key, bytes(body), _HASH).digest()[:MAC_SIZE]

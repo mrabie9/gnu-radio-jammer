@@ -1,0 +1,364 @@
+options:
+  parameters:
+    author: gpsk_comms
+    catch_exceptions: 'True'
+    category: Custom
+    description: Anti-jam command link loopback with a Qt GUI. Launch with --level 0
+      and work upwards; the spectrum and waterfall show what each level does to the
+      waveform, and the jammer sliders show what each level buys.
+    generate_options: qt_gui
+    id: aj_command_ladder_gui
+    output_language: python
+    run: 'True'
+    title: AJ Command Ladder
+  states:
+    coordinate: [8, 8]
+    rotation: 0
+    state: enabled
+blocks:
+- name: level
+  id: parameter
+  parameters:
+    alias: ''
+    comment: 'The feature level, 0 to 6. This is a launch parameter and not a live
+      control: each level adds or removes a processing stage, which changes the shape
+      of the flowgraph, and a flowgraph cannot be rewired while it is running. Relaunch
+      to change it.'
+    hide: none
+    label: Feature Level (0-6)
+    short_id: l
+    type: intx
+    value: '0'
+  states:
+    coordinate: [8, 84]
+    rotation: 0
+    state: enabled
+- name: import_gpsk
+  id: import
+  parameters:
+    alias: ''
+    comment: ''
+    imports: from gpsk_comms.levels import LEVEL_NAMES, profile
+  states:
+    coordinate: [160, 12]
+    rotation: 0
+    state: enabled
+- name: import_key
+  id: import
+  parameters:
+    alias: ''
+    comment: ''
+    imports: from gpsk_comms.security import generate_master_key
+  states:
+    coordinate: [160, 76]
+    rotation: 0
+    state: enabled
+- name: samp_rate
+  id: variable
+  parameters:
+    comment: 'Low on purpose. The receive chain is Python and GNU Radio gives each
+      block its own thread contending for one GIL, so a few hundred kilosamples per
+      second is the budget on a typical host. Raise it until the transmitter starts
+      re-anchoring, then back off.'
+    value: '500000'
+  states:
+    coordinate: [8, 156]
+    rotation: 0
+    state: enabled
+- name: spreading_factor
+  id: variable
+  parameters:
+    comment: ''
+    value: '127'
+  states:
+    coordinate: [136, 156]
+    rotation: 0
+    state: enabled
+- name: dwell_us
+  id: variable
+  parameters:
+    comment: 'Hop dwell. With the sample rate and spreading factor above this leaves
+      the receiver room to find a burst before the code changes under it; too short
+      and levels 5 and 6 refuse to build rather than failing silently.'
+    value: '200000'
+  states:
+    coordinate: [280, 156]
+    rotation: 0
+    state: enabled
+- name: repeat_rate
+  id: variable
+  parameters:
+    comment: 'Ignored from level 5 up, where exactly one burst is sent per hop dwell.'
+    value: '8'
+  states:
+    coordinate: [408, 156]
+    rotation: 0
+    state: enabled
+- name: master_key
+  id: variable
+  parameters:
+    comment: 'Generated per run, so both ends of this loopback share it. Ignored at
+      levels 0 and 1, which need no key at all. A real deployment loads it with
+      load_master_key() instead and never puts it in a flowgraph file.'
+    value: generate_master_key()
+  states:
+    coordinate: [536, 156]
+    rotation: 0
+    state: enabled
+- name: level_summary
+  id: variable
+  parameters:
+    comment: ''
+    value: "'level %d (%s) -- %s' % (level, LEVEL_NAMES[level], ', '.join(profile(level).enabled)
+      or 'bare point-to-point link, no key')"
+  states:
+    coordinate: [688, 156]
+    rotation: 0
+    state: enabled
+- name: level_label
+  id: variable_qtgui_label
+  parameters:
+    comment: ''
+    formatter: None
+    gui_hint: 0,0,1,2
+    label: Running
+    type: string
+    value: level_summary
+  states:
+    coordinate: [688, 84]
+    rotation: 0
+    state: enabled
+- name: jam_amplitude
+  id: variable_qtgui_range
+  parameters:
+    comment: 'Live. Raise it until commands stop arriving: that is this level''s jam
+      margin against a tone. Levels 0-2 are narrowband and simply filter an offset
+      tone out; level 3 spreads into it and does worse; level 4 excises it and does
+      far better.'
+    gui_hint: 3,0,1,1
+    label: Jammer amplitude
+    min_len: '200'
+    orient: Qt.Horizontal
+    rangeType: float
+    start: '0'
+    step: '0.05'
+    stop: '5'
+    value: '0'
+    widget: counter_slider
+  states:
+    coordinate: [8, 252]
+    rotation: 0
+    state: enabled
+- name: jam_offset_hz
+  id: variable_qtgui_range
+  parameters:
+    comment: 'Live. Where the tone sits relative to the wanted signal.'
+    gui_hint: 3,1,1,1
+    label: Jammer offset (Hz)
+    min_len: '200'
+    orient: Qt.Horizontal
+    rangeType: float
+    start: -samp_rate/2
+    step: '1000'
+    stop: samp_rate/2
+    value: '65000'
+    widget: counter_slider
+  states:
+    coordinate: [216, 252]
+    rotation: 0
+    state: enabled
+- name: keyboard
+  id: gpsk_comms_keyboard_command_source
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: 'Click this panel to give it focus, then hold W/A/S/D to drive and press
+      space to stop.'
+    gui_hint: 1,0,2,1
+  states:
+    coordinate: [8, 400]
+    rotation: 0
+    state: enabled
+- name: tx
+  id: gpsk_comms_aj_command_tx
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    dwell_us: dwell_us
+    hold_to_send: 'False'
+    interleave_depth: '17'
+    level: level
+    master_key: master_key
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    repeat_rate: repeat_rate
+    sample_rate: samp_rate
+    spreading_factor: spreading_factor
+  states:
+    coordinate: [280, 396]
+    rotation: 0
+    state: enabled
+- name: jammer
+  id: analog_sig_source_x
+  parameters:
+    affinity: ''
+    alias: ''
+    amp: jam_amplitude
+    comment: ''
+    freq: jam_offset_hz
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    offset: '0'
+    phase: '0'
+    samp_rate: samp_rate
+    type: complex
+    waveform: analog.GR_COS_WAVE
+  states:
+    coordinate: [280, 524]
+    rotation: 0
+    state: enabled
+- name: combiner
+  id: blocks_add_xx
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    num_inputs: '2'
+    type: complex
+    vlen: '1'
+  states:
+    coordinate: [560, 440]
+    rotation: 0
+    state: enabled
+- name: rx
+  id: gpsk_comms_aj_command_rx
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: 'Must be at the same level as the transmitter. A mismatch delivers
+      nothing, except across the spreading rung, where it limps through on a
+      noiseless loopback having thrown away all of its processing gain.'
+    detection_threshold: '0.25'
+    dwell_us: dwell_us
+    grace_period: '0.0'
+    interleave_depth: '17'
+    level: level
+    master_key: master_key
+    sample_rate: samp_rate
+    spreading_factor: spreading_factor
+    watchdog_timeout: '2.0'
+  states:
+    coordinate: [712, 428]
+    rotation: 0
+    state: enabled
+- name: spectrum
+  id: qtgui_freq_sink_x
+  parameters:
+    affinity: ''
+    alias: ''
+    autoscale: 'False'
+    average: '0.2'
+    axislabels: 'True'
+    bw: samp_rate
+    comment: 'Watch this change as the level rises: narrow at levels 0-2, spread
+      across the band at 3 and up, and stepping between sub-channels at 5 and 6.'
+    ctrlpanel: 'False'
+    fc: '0'
+    fftsize: '1024'
+    freqhalf: 'True'
+    grid: 'True'
+    gui_hint: 1,1,1,1
+    label: Relative Gain
+    label1: link
+    legend: 'True'
+    name: '"Transmitted spectrum plus jammer"'
+    nconnections: '1'
+    norm_window: 'False'
+    showports: 'False'
+    tr_chan: '0'
+    tr_level: '0.0'
+    tr_mode: qtgui.TRIG_MODE_FREE
+    tr_tag: '""'
+    type: complex
+    units: dB
+    update_time: '0.10'
+    width1: '1'
+    wintype: window.WIN_BLACKMAN_hARRIS
+    ymax: '10'
+    ymin: '-110'
+  states:
+    coordinate: [880, 332]
+    rotation: 0
+    state: enabled
+- name: waterfall
+  id: qtgui_waterfall_sink_x
+  parameters:
+    affinity: ''
+    alias: ''
+    axislabels: 'True'
+    bw: samp_rate
+    color1: '0'
+    comment: 'At level 5 and above the bursts visibly move between sub-channels once
+      per dwell. That is the clearest confirmation that both ends are following the
+      same hop schedule.'
+    fc: '0'
+    fftsize: '1024'
+    freqhalf: 'True'
+    grid: 'False'
+    gui_hint: 2,1,1,1
+    int_max: '10'
+    int_min: '-110'
+    label1: ''
+    legend: 'True'
+    name: '"Waterfall -- hopping is visible here from level 5"'
+    nconnections: '1'
+    showports: 'False'
+    type: complex
+    update_time: '0.10'
+    wintype: window.WIN_BLACKMAN_hARRIS
+  states:
+    coordinate: [880, 500]
+    rotation: 0
+    state: enabled
+- name: command_debug
+  id: blocks_message_debug
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: 'Delivered commands print on the console. link_state reports ok,
+      degraded, jammed or no_signal, and a timeout entry is the failsafe firing.'
+    en_uvec: 'True'
+    log_level: info
+  states:
+    coordinate: [944, 660]
+    rotation: 0
+    state: enabled
+- name: tx_diagnostics
+  id: blocks_message_debug
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: 'Quiet unless something is wrong. A clock_reanchor event means the
+      flowgraph cannot keep up with the sample rate and the transmitter has fallen
+      behind the wall clock its hop schedule comes from -- a host capacity problem,
+      not a fault in the level under test. Lower samp_rate if it repeats.'
+    en_uvec: 'True'
+    log_level: info
+  states:
+    coordinate: [944, 780]
+    rotation: 0
+    state: enabled
+connections:
+- [keyboard, command, tx, command]
+- [tx, diagnostics, tx_diagnostics, print]
+- [tx, '0', combiner, '0']
+- [jammer, '0', combiner, '1']
+- [combiner, '0', rx, '0']
+- [combiner, '0', spectrum, '0']
+- [combiner, '0', waterfall, '0']
+- [rx, command, command_debug, print]
+metadata:
+  file_format: 1

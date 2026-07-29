@@ -21,7 +21,16 @@ insensitive to a minority of large values.
 import threading
 
 import numpy
+from numpy.lib.stride_tricks import sliding_window_view
 from gnuradio import gr
+
+# SciPy's transforms keep single precision end to end; NumPy's promote complex64
+# to complex128 and double the memory traffic of every stage downstream of them.
+# The fallback is exact, only slower, so SciPy stays an optional dependency.
+try:
+    from scipy.fft import fft as _fft, ifft as _ifft
+except ImportError:  # pragma: no cover - exercised only where SciPy is absent
+    from numpy.fft import fft as _fft, ifft as _ifft
 
 DEFAULT_FFT_SIZE = 1024
 
@@ -65,6 +74,7 @@ class narrowband_excision(gr.sync_block):
         self._threshold = float(threshold)
         if self._threshold <= 1.0:
             raise ValueError("threshold must exceed 1.0")
+        self._threshold_power = self._threshold ** 2
         self._max_fraction = float(max_fraction)
         self._enabled = bool(enabled)
 
@@ -85,6 +95,10 @@ class narrowband_excision(gr.sync_block):
         # thousand samples in and the output silently desynchronises from there.
         self._pending = numpy.zeros(self._fft_size, dtype=numpy.complex64)
         self._tail = numpy.zeros(self._hop, dtype=numpy.complex64)
+        # Whether ``_tail`` still equals the plain windowed input, which is the
+        # precondition for the reconstruction-free path in _process_batch. The
+        # primed zero block satisfies it, and only an actual excision breaks it.
+        self._tail_clean = True
         self._ready = numpy.zeros(0, dtype=numpy.complex64)
         self._lock = threading.Lock()
         self._blocks = 0
@@ -106,34 +120,83 @@ class narrowband_excision(gr.sync_block):
     def set_enabled(self, enabled):
         self._enabled = bool(enabled)
 
-    def _excise_block(self, block):
-        spectrum = numpy.fft.fft(block * self._window)
-        magnitude = numpy.abs(spectrum)
-        median = numpy.median(magnitude)
-        if median <= 0.0:
-            return numpy.fft.ifft(spectrum)
+    def _process_batch(self, source, windows):
+        """Excise a whole batch of blocks. Returns ``(output samples, new tail)``.
 
-        mask = magnitude > self._threshold * median
-        count = int(mask.sum())
-        limit = int(self._max_fraction * self._fft_size)
-        saturated = count > limit
-        if saturated:
+        Batched rather than looped because this is the only stage that touches
+        every sample from Python, and GNU Radio runs each Python block in its own
+        thread contending for one GIL -- so what limits the receiver is the *sum*
+        of every Python block's cost, not any one of them. Falling under real
+        time is a correctness problem and not merely a slow one: the transmitter
+        anchors its chip stream to the wall clock, so a receiver that cannot keep
+        up drags the whole flowgraph behind the hop schedule it is trying to
+        follow, and level 5 stops decoding for reasons no counter explains.
+
+        Every decision stays strictly per-block: median, threshold and cap are
+        all computed along the row axis, so a batch produces exactly what the
+        same blocks would have produced one at a time.
+        """
+        count = len(windows)
+        spectrum = _fft(windows * self._window, axis=1)
+        # Compare powers rather than magnitudes. The median commutes with
+        # squaring, so ``|S| > t * median(|S|)`` is ``P > t**2 * median(P)`` --
+        # the same decision without a square root over every bin.
+        power = spectrum.real ** 2 + spectrum.imag ** 2
+        median = numpy.median(power, axis=1)
+        # A silent block has a zero median and every bin is "above" it; excising
+        # there would blank pure silence and charge it to the statistics.
+        mask = (power > self._threshold_power * median[:, None]) & (median[:, None] > 0.0)
+        counts = mask.sum(axis=1)
+
+        limit = max(1, int(self._max_fraction * self._fft_size))
+        saturated = counts > limit
+        if saturated.any():
             # Excise only the worst offenders up to the cap, so a broadband
             # jammer degrades this stage gracefully instead of gutting the band.
-            order = numpy.argsort(magnitude)[::-1]
-            mask = numpy.zeros_like(mask)
-            mask[order[:limit]] = True
-            count = limit
+            rows = numpy.flatnonzero(saturated)
+            strongest = numpy.argpartition(-power[rows], limit - 1, axis=1)[:, :limit]
+            mask[rows] = False
+            mask[rows[:, None], strongest] = True
+            counts[rows] = limit
 
-        if count:
-            spectrum = spectrum.copy()
-            spectrum[mask] = 0.0
-
+        excised = int(counts.sum())
         with self._lock:
-            self._blocks += 1
-            self._excised_bins += count
-            self._saturated_blocks += int(saturated)
-        return numpy.fft.ifft(spectrum)
+            self._blocks += count
+            self._excised_bins += excised
+            self._saturated_blocks += int(saturated.sum())
+
+        if not excised and self._tail_clean:
+            # Nothing stood out, which is the ordinary case whenever no
+            # narrowband jammer is present. A Hann pair at 50% overlap sums to
+            # unity, so reconstructing here would return the input bit for bit:
+            # skip the inverse transform and the overlap-add entirely and hand
+            # back the input. This is what keeps excision close to free when it
+            # has nothing to do, and so what makes leaving it switched on cheap.
+            #
+            # Only valid while the carried-over tail is itself unexcised. If the
+            # previous batch removed anything, its tail overlaps the first hop of
+            # this one and must be added in properly, so that batch is
+            # reconstructed the long way even though it excises nothing itself.
+            emitted = source[: count * self._hop].astype(numpy.complex64)
+            tail = (windows[-1][self._hop :] * self._window[self._hop :]).astype(
+                numpy.complex64
+            )
+            return emitted, tail
+
+        self._tail_clean = not excised
+        spectrum[mask] = 0.0
+        processed = _ifft(spectrum, axis=1)
+        # Overlap-add: each block's first half completes its predecessor's tail,
+        # so the tails are the same array shifted by one block.
+        leading = processed[:, : self._hop]
+        trailing = processed[:, self._hop :]
+        tails = numpy.empty_like(trailing)
+        tails[0] = self._tail
+        tails[1:] = trailing[:-1]
+        return (
+            (leading + tails).ravel().astype(numpy.complex64),
+            trailing[-1].astype(numpy.complex64),
+        )
 
     def work(self, input_items, output_items):
         output = output_items[0]
@@ -146,13 +209,12 @@ class narrowband_excision(gr.sync_block):
         self._pending = numpy.concatenate((self._pending, input_items[0][:count]))
 
         produced = [self._ready]
-        while len(self._pending) >= self._fft_size:
-            block = self._pending[: self._fft_size]
-            processed = self._excise_block(block)
-            # Overlap-add: the first half completes the previous block's tail.
-            produced.append((processed[: self._hop] + self._tail).astype(numpy.complex64))
-            self._tail = processed[self._hop :].astype(numpy.complex64)
-            self._pending = self._pending[self._hop :]
+        if len(self._pending) >= self._fft_size:
+            # Every block start, one hop apart, that has a full block behind it.
+            windows = sliding_window_view(self._pending, self._fft_size)[:: self._hop]
+            emitted, self._tail = self._process_batch(self._pending, windows)
+            produced.append(emitted)
+            self._pending = self._pending[len(windows) * self._hop :]
         self._ready = numpy.concatenate(produced)
 
         # Priming above guarantees production keeps pace with consumption, so

@@ -241,6 +241,19 @@ class dsss_receiver(gr.sync_block):
         self.message_port_register_out(self._payload_port)
 
     @property
+    def spreading_factor(self):
+        return self._spreading_factor
+
+    @property
+    def window_chips(self):
+        """Chips that must be buffered before a burst can be searched for.
+
+        The hop controller reads this: a code may only be changed once the burst
+        sent under the previous one has had time to be buffered *and* searched.
+        """
+        return self._window_chips
+
+    @property
     def counts(self):
         with self._lock:
             return dict(self._counts)
@@ -249,6 +262,21 @@ class dsss_receiver(gr.sync_block):
     def last_snr_db(self):
         with self._lock:
             return self._last_snr_db
+
+    def set_preamble(self, preamble_bits):
+        """Install the sync word to search for from now on.
+
+        Called from the hop controller between bursts, never during one. The
+        buffered correlator output is deliberately left alone: it holds the
+        previous hop's quiet tail, which will simply fail to sync and be slid
+        past, and discarding it would throw away a burst that had already
+        arrived but not yet been searched.
+        """
+        symbols = bits_to_symbols(preamble_bits)
+        if len(symbols) != len(self._preamble):
+            raise ValueError("sync word length must not change while running")
+        with self._lock:
+            self._preamble = symbols
 
     def _publish(self, soft_bits, snr_db):
         # The per-burst SNR travels with its payload. Reading the receiver's
@@ -261,7 +289,7 @@ class dsss_receiver(gr.sync_block):
             pmt.cons(metadata, pmt.init_f32vector(len(soft_bits), soft_bits.tolist())),
         )
 
-    def _find_frame_start(self, symbols):
+    def _find_frame_start(self, symbols, preamble):
         """Locate the preamble within a run of despread symbols.
 
         Scores each candidate offset by the normalised inner product between the
@@ -285,7 +313,6 @@ class dsss_receiver(gr.sync_block):
         values in the millions instead of at most one, and the receiver locks
         onto whatever idle sample happened to round the least favourably.
         """
-        preamble = self._preamble
         count = len(preamble)
         if len(symbols) < count:
             return -1, 0.0
@@ -322,12 +349,19 @@ class dsss_receiver(gr.sync_block):
         if len(self._correlation) < self._window_chips:
             return False
 
+        # Snapshot the sync word once. The hop controller may swap it between
+        # any two statements here, and scoring a candidate against one sync word
+        # while derotating against another would silently corrupt both the
+        # frequency estimate and the SNR.
+        with self._lock:
+            preamble = self._preamble
+
         phase = chip_phase(self._correlation, self._spreading_factor)
         aligned = self._correlation[phase :: self._spreading_factor]
         if len(aligned) < self._burst_symbols:
             return False
 
-        start, quality = self._find_frame_start(aligned)
+        start, quality = self._find_frame_start(aligned, preamble)
         if start < 0 or quality < self._threshold:
             with self._lock:
                 self._counts["no_sync"] += 1
@@ -342,8 +376,8 @@ class dsss_receiver(gr.sync_block):
             return False
 
         symbols = aligned[start:end].astype(numpy.complex64)
-        preamble_part = symbols[: len(self._preamble)] * self._preamble
-        payload_part = symbols[len(self._preamble) :]
+        preamble_part = symbols[: len(preamble)] * preamble
+        payload_part = symbols[len(preamble) :]
 
         if self._correct_frequency:
             offset_hz = estimate_frequency_offset(preamble_part, self._symbol_rate)
@@ -403,6 +437,29 @@ class dsss_despreader(gr.hier_block2):
         )
         self.connect(self, self._matched_filter, self._receiver)
         self.msg_connect((self._receiver, "payload"), (self, "payload"))
+
+    def set_code(self, code):
+        """Retune the matched filter to a new spreading code.
+
+        Only the filter needs the code: the receiver downstream consumes
+        correlator output and cares about the code's *length* alone, which may
+        not change. Retuning takes effect on the next samples the filter
+        processes, which is a few milliseconds of buffering later -- that lag is
+        why the hop controller switches codes mid-dwell rather than on the dwell
+        boundary itself.
+        """
+        code = numpy.asarray(code, dtype=numpy.float32)
+        if len(code) != self._receiver.spreading_factor:
+            raise ValueError("spreading factor must not change while running")
+        self._matched_filter.set_taps(matched_filter_taps(code).tolist())
+
+    def set_preamble(self, preamble_bits):
+        """Retune the frame-sync word. See :meth:`dsss_receiver.set_preamble`."""
+        self._receiver.set_preamble(preamble_bits)
+
+    @property
+    def window_chips(self):
+        return self._receiver.window_chips
 
     @property
     def counts(self):

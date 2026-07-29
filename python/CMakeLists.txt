@@ -1,6 +1,7 @@
 install(
     FILES
         gpsk_comms/__init__.py
+        gpsk_comms/levels.py
         gpsk_comms/protocol.py
         gpsk_comms/security.py
         gpsk_comms/dsss.py

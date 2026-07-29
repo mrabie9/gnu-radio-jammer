@@ -3,7 +3,8 @@ options:
     author: gpsk_comms
     catch_exceptions: 'True'
     category: Custom
-    description: Anti-jam command link loopback with a switchable jammer, no USRP hardware
+    description: Anti-jam command link loopback. Set the 'level' variable to walk the
+      feature ladder from 0 (bare link) to 6 (everything); no USRP hardware needed
     generate_options: no_gui
     id: aj_command_loopback
     output_language: python
@@ -17,7 +18,7 @@ blocks:
 - name: samp_rate
   id: variable
   parameters:
-    value: '2000000'
+    value: '500000'
   states:
     coordinate: [184, 12]
     rotation: 0
@@ -25,9 +26,17 @@ blocks:
 - name: spreading_factor
   id: variable
   parameters:
-    value: '255'
+    value: '127'
   states:
     coordinate: [304, 12]
+    rotation: 0
+    state: enabled
+- name: level
+  id: variable
+  parameters:
+    value: '4'
+  states:
+    coordinate: [304, 76]
     rotation: 0
     state: enabled
 - name: jam_amplitude
@@ -57,12 +66,12 @@ blocks:
 - name: tx
   id: gpsk_comms_aj_command_tx
   parameters:
-    dwell_us: '100000'
+    dwell_us: '200000'
     hold_to_send: 'False'
-    hopping_enabled: 'False'
     interleave_depth: '17'
+    level: level
     master_key: master_key
-    repeat_rate: '20'
+    repeat_rate: '8'
     sample_rate: samp_rate
     spreading_factor: spreading_factor
   states:
@@ -73,11 +82,10 @@ blocks:
   id: gpsk_comms_aj_command_rx
   parameters:
     detection_threshold: '0.25'
-    dwell_us: '100000'
-    excision_enabled: 'True'
+    dwell_us: '200000'
     grace_period: '0.0'
-    hopping_enabled: 'False'
     interleave_depth: '17'
+    level: level
     master_key: master_key
     sample_rate: samp_rate
     spreading_factor: spreading_factor

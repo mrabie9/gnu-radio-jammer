@@ -14,10 +14,18 @@ templates:
         spreading_factor=${spreading_factor},
         interleave_depth=${interleave_depth},
         dwell_us=${dwell_us},
-        hopping_enabled=${hopping_enabled},
+        level=${level},
         hold_to_send=${hold_to_send})
 
 parameters:
+- id: level
+  label: Feature Level
+  dtype: int
+  default: '5'
+  options: ['0', '1', '2', '3', '4', '5', '6']
+  option_labels: ['0 - basic point-to-point link', '1 - + coding and interleaving',
+    '2 - + authentication and replay', '3 - + spreading', '4 - + narrowband excision',
+    '5 - + frequency hopping', '6 - + LO retune and band escape']
 - id: master_key
   label: Master Key
   dtype: raw
@@ -45,10 +53,6 @@ parameters:
   label: Hop Dwell (us)
   dtype: int
   default: '100000'
-- id: hopping_enabled
-  label: Frequency Hopping
-  dtype: bool
-  default: 'True'
 - id: hold_to_send
   label: Send Only While Pressed
   dtype: bool
@@ -81,7 +85,25 @@ documentation: |-
   scattered rather than contiguous errors. Deeper is more robust and adds
   latency.
 
-  The Master Key is required and must not be a constant in a flowgraph file.
+  Feature Level selects how much of the stack is switched on. Each level is the
+  one below plus exactly one mechanism, so bring a link up from level 0 and stop
+  at the first level that fails: that level's mechanism is the one at fault.
+
+    0  bare point-to-point BPSK link, no key required
+    1  + rate-1/2 convolutional coding and interleaving
+    2  + keyed authentication and replay rejection (a key is required from here)
+    3  + keyed spreading code
+    4  + narrowband excision (receiver only)
+    5  + keyed sub-channel frequency hopping
+    6  + LO retuning and band escape
+
+  It must match the receiver's. From level 5 the transmitter sends exactly one
+  burst per hop dwell, aligned to the dwell boundary, and Repeat Rate is ignored:
+  a burst that straddled a boundary would be spread with one code and despread
+  with the next.
+
+  The Master Key is required from level 2 upwards and must not be a constant in
+  a flowgraph file. It is ignored at levels 0 and 1, which need no key at all.
   Generate one with gpsk_comms.security.generate_master_key() and load it via
   GPSK_COMMS_KEY_FILE or GPSK_COMMS_KEY. Both ends need the same key: it derives
   the authentication tag, the spreading code, the sync word and the hop order.

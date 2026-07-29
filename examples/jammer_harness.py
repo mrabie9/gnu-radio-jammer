@@ -25,6 +25,7 @@ from gnuradio import analog, blocks, gr
 
 from gpsk_comms import gmsk_command_rx, gmsk_command_tx
 from gpsk_comms.aj_command import aj_command_rx, aj_command_tx
+from gpsk_comms.levels import LEVEL_EXCISION, LEVEL_NAMES, profile
 from gpsk_comms.security import generate_master_key
 
 JAMMER_TYPES = ("barrage", "cw", "swept", "pulsed")
@@ -111,21 +112,28 @@ def measure_signal_power(build_transmitter, sample_rate, samples=200_000):
     return float(numpy.mean(numpy.abs(captured) ** 2))
 
 
-def run_aj_trial(key, jam_kind, jam_amplitude, sample_rate, spreading_factor, duration, seed):
-    """Return the number of commands delivered under one jamming condition."""
+def run_aj_trial(key, jam_kind, jam_amplitude, sample_rate, spreading_factor, duration,
+                 seed, level=LEVEL_EXCISION):
+    """Return the number of commands delivered under one jamming condition.
+
+    Defaults to level 4: everything that improves jam resistance in a static
+    channel. Hopping is deliberately excluded from the default because this
+    harness models the jammer as fixed and in-band, which understates hopping and
+    would credit it with nothing. Pass ``--level`` to measure a single rung.
+    """
     top = gr.top_block()
     transmitter = aj_command_tx(
         key,
         sample_rate=sample_rate,
         repeat_rate=20.0,
         spreading_factor=spreading_factor,
-        hopping_enabled=False,
+        level=level,
     )
     receiver = aj_command_rx(
         key,
         sample_rate=sample_rate,
         spreading_factor=spreading_factor,
-        hopping_enabled=False,
+        level=level,
         watchdog_timeout=10.0,
     )
     jammer = _jammer_source(
@@ -204,6 +212,11 @@ def main():
         "--jammer", choices=JAMMER_TYPES, action="append", help="restrict to one jammer type"
     )
     parser.add_argument("--skip-baseline", action="store_true")
+    parser.add_argument(
+        "--level", type=int, default=LEVEL_EXCISION,
+        help="feature level to measure (0-6); each level is the one below plus one "
+             "mechanism, so sweeping it shows what each layer is worth",
+    )
     parser.add_argument("--seed", type=int, default=17)
     args = parser.parse_args()
 
@@ -216,7 +229,7 @@ def main():
     aj_levels = list(range(-6, 79, step))
     baseline_levels = list(range(-24, 25, step))
 
-    key = generate_master_key()
+    key = generate_master_key() if profile(args.level).needs_key else None
     sample_rate = args.sample_rate
 
     print("=" * 72)
@@ -226,6 +239,7 @@ def main():
     print(f"spreading factor  {args.spreading_factor} "
           f"({10*numpy.log10(args.spreading_factor):.1f} dB of processing gain)")
     print(f"dwell per point   {args.duration:g} s")
+    print(f"feature level     {args.level} ({LEVEL_NAMES[args.level]})")
     print("\nCalibrating transmitter power...")
 
     aj_power = measure_signal_power(
@@ -234,7 +248,7 @@ def main():
             sample_rate=sample_rate,
             repeat_rate=20.0,
             spreading_factor=args.spreading_factor,
-            hopping_enabled=False,
+            level=args.level,
         ),
         sample_rate,
     )
@@ -266,10 +280,12 @@ def main():
                 baseline_levels,
             )
 
+        enabled = ", ".join(profile(args.level).enabled) or "nothing"
         results[(kind, "aj")] = sweep(
-            "anti-jam link (DSSS + FEC + interleaving + excision + MAC)",
+            f"anti-jam link at level {args.level} ({LEVEL_NAMES[args.level]}): {enabled}",
             lambda amplitude, k=kind: run_aj_trial(
-                key, k, amplitude, sample_rate, args.spreading_factor, args.duration, args.seed
+                key, k, amplitude, sample_rate, args.spreading_factor, args.duration,
+                args.seed, args.level,
             )[:3],
             aj_power,
             aj_levels,

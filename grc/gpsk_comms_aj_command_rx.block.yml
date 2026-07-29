@@ -15,11 +15,18 @@ templates:
         watchdog_timeout=${watchdog_timeout},
         grace_period=${grace_period},
         dwell_us=${dwell_us},
-        hopping_enabled=${hopping_enabled},
-        excision_enabled=${excision_enabled},
+        level=${level},
         detection_threshold=${detection_threshold})
 
 parameters:
+- id: level
+  label: Feature Level
+  dtype: int
+  default: '5'
+  options: ['0', '1', '2', '3', '4', '5', '6']
+  option_labels: ['0 - basic point-to-point link', '1 - + coding and interleaving',
+    '2 - + authentication and replay', '3 - + spreading', '4 - + narrowband excision',
+    '5 - + frequency hopping', '6 - + LO retune and band escape']
 - id: master_key
   label: Master Key
   dtype: raw
@@ -51,14 +58,6 @@ parameters:
   label: Hop Dwell (us)
   dtype: int
   default: '100000'
-- id: hopping_enabled
-  label: Frequency Hopping
-  dtype: bool
-  default: 'True'
-- id: excision_enabled
-  label: Narrowband Excision
-  dtype: bool
-  default: 'True'
 - id: detection_threshold
   label: Detection Threshold
   dtype: real
@@ -84,7 +83,22 @@ documentation: |-
   authenticate are published, so a jammer cannot inject a command no matter how
   much power it applies.
 
-  Every parameter except Failsafe Grace Period must match the transmitter.
+  Feature Level selects how much of the stack is switched on. Each level is the
+  one below plus exactly one mechanism, so bring a link up from level 0 and stop
+  at the first level that fails: that level's mechanism is the one at fault.
+
+    0  bare point-to-point BPSK link, no key required
+    1  + rate-1/2 convolutional coding and interleaving
+    2  + keyed authentication and replay rejection (a key is required from here)
+    3  + keyed spreading code
+    4  + narrowband excision
+    5  + keyed sub-channel frequency hopping
+    6  + LO retuning and band escape
+
+  Every parameter except Failsafe Grace Period must match the transmitter, and
+  that includes Feature Level -- a mismatch delivers nothing.
+
+  Master Key is ignored at levels 0 and 1, which need no key at all.
 
   Failsafe Grace Period extends the watchdog before 'stop' is commanded. It
   defaults to zero, meaning stop immediately on loss of link. Raise it only

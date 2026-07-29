@@ -13,6 +13,7 @@ set(_qa_plain
     qa_hopping
     qa_gmsk_loopback
     qa_aj_command
+    qa_levels
 )
 
 foreach(_test ${_qa_plain})
@@ -23,9 +24,10 @@ foreach(_test ${_qa_plain})
     set_tests_properties(${_test} PROPERTIES ENVIRONMENT "PYTHONPATH=${_qa_pythonpath}")
 endforeach()
 
-# qa_aj_command runs several real-time flowgraphs end to end, so it needs more
-# than the default CTest timeout allows.
+# These run several real-time flowgraphs end to end, so they need more than the
+# default CTest timeout allows. qa_levels runs one per rung of the ladder.
 set_tests_properties(qa_aj_command PROPERTIES TIMEOUT 300)
+set_tests_properties(qa_levels PROPERTIES TIMEOUT 600)
 
 # The keyboard source needs a Qt platform plugin even when headless.
 add_test(

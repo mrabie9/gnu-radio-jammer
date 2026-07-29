@@ -82,6 +82,55 @@ class ReconstructionTest(unittest.TestCase):
         self.assertEqual(block.statistics["blocks"], 0)
 
 
+class ReconstructionPathTest(unittest.TestCase):
+    """The block skips the inverse transform when it excises nothing.
+
+    That shortcut is what makes excision cheap enough to leave switched on, but
+    it is only valid while the overlap tail carried in from the previous batch is
+    itself unexcised. These check that the shortcut and the full reconstruction
+    agree, including across the boundary where a jammer starts and stops.
+    """
+
+    def test_a_tone_that_starts_midway_is_still_reconstructed_correctly(self):
+        count = 1024 * 60
+        clean = flat_signal(count, seed=11)
+        jammed = clean.copy()
+        # The tone begins partway through, so the block runs the shortcut, then
+        # the full path, then the shortcut again -- the transition that a
+        # stale overlap tail would corrupt.
+        start = 1024 * 20
+        jammed[start:] = jammed[start:] + tone(count - start, 60.0)[: count - start]
+        output, block = run_excision(jammed)
+
+        self.assertGreater(block.statistics["excised_bins"], 0)
+        # Before the tone arrives, output must still be the input untouched.
+        numpy.testing.assert_allclose(
+            output[DELAY : DELAY + 10_000], clean[:10_000], atol=1e-4
+        )
+        # After it stops being excised the stream must remain aligned, not
+        # merely close: a mishandled tail shows up as a step, not as noise.
+        tail_error = numpy.abs(
+            output[DELAY + start + 8192 : DELAY + start + 18192]
+            - clean[start + 8192 : start + 18192]
+        ).max()
+        self.assertLess(tail_error, 1.0, "signal was corrupted after the tone began")
+
+    def test_a_tone_that_stops_leaves_the_stream_aligned(self):
+        count = 1024 * 60
+        clean = flat_signal(count, seed=12)
+        jammed = clean.copy()
+        stop = 1024 * 20
+        jammed[:stop] = jammed[:stop] + tone(stop, 60.0)
+        output, _ = run_excision(jammed)
+        # Once the jammer stops the block returns to the shortcut path, and it
+        # must pick up exactly where the reconstructed samples left off.
+        numpy.testing.assert_allclose(
+            output[DELAY + stop + 4096 : DELAY + stop + 20_000],
+            clean[stop + 4096 : stop + 20_000],
+            atol=1e-4,
+        )
+
+
 class SuppressionTest(unittest.TestCase):
     def test_continuous_wave_jammer_is_deeply_suppressed(self):
         count = 1024 * 60
