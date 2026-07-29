@@ -15,6 +15,7 @@ templates:
         interleave_depth=${interleave_depth},
         dwell_us=${dwell_us},
         level=${level},
+        hopping_enabled=${hopping_enabled},
         hold_to_send=${hold_to_send})
 
 parameters:
@@ -53,6 +54,11 @@ parameters:
   label: Hop Dwell (us)
   dtype: int
   default: '100000'
+- id: hopping_enabled
+  label: Frequency Hopping (overrides level)
+  dtype: raw
+  default: 'None'
+  hide: part
 - id: hold_to_send
   label: Send Only While Pressed
   dtype: bool
@@ -84,6 +90,14 @@ documentation: |-
   Interleaver Depth spreads each frame's coded bits so a pulsed jammer produces
   scattered rather than contiguous errors. Deeper is more robust and adds
   latency.
+
+  Frequency Hopping and Narrowband Excision are superseded by Feature Level and
+  default to None, meaning "whatever the level says". They are kept because
+  flowgraphs written before the ladder existed set them, and GRC drops a
+  parameter it does not recognise *silently* -- such a flowgraph would come up at
+  the level default with hopping switched back on and give no sign of it. Set
+  either to True or False to override the level for that one mechanism, which is
+  how a fault is bisected; leave them alone otherwise.
 
   Feature Level selects how much of the stack is switched on. Each level is the
   one below plus exactly one mechanism, so bring a link up from level 0 and stop

@@ -16,6 +16,8 @@ templates:
         grace_period=${grace_period},
         dwell_us=${dwell_us},
         level=${level},
+        hopping_enabled=${hopping_enabled},
+        excision_enabled=${excision_enabled},
         detection_threshold=${detection_threshold})
 
 parameters:
@@ -58,6 +60,16 @@ parameters:
   label: Hop Dwell (us)
   dtype: int
   default: '100000'
+- id: hopping_enabled
+  label: Frequency Hopping (overrides level)
+  dtype: raw
+  default: 'None'
+  hide: part
+- id: excision_enabled
+  label: Narrowband Excision (overrides level)
+  dtype: raw
+  default: 'None'
+  hide: part
 - id: detection_threshold
   label: Detection Threshold
   dtype: real
@@ -82,6 +94,14 @@ documentation: |-
   decoding, then an authentication and replay check. Only frames that
   authenticate are published, so a jammer cannot inject a command no matter how
   much power it applies.
+
+  Frequency Hopping and Narrowband Excision are superseded by Feature Level and
+  default to None, meaning "whatever the level says". They are kept because
+  flowgraphs written before the ladder existed set them, and GRC drops a
+  parameter it does not recognise *silently* -- such a flowgraph would come up at
+  the level default with hopping switched back on and give no sign of it. Set
+  either to True or False to override the level for that one mechanism, which is
+  how a fault is bisected; leave them alone otherwise.
 
   Feature Level selects how much of the stack is switched on. Each level is the
   one below plus exactly one mechanism, so bring a link up from level 0 and stop
