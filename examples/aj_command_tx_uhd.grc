@@ -1,0 +1,336 @@
+options:
+  parameters:
+    author: gpsk_comms
+    catch_exceptions: 'True'
+    category: Custom
+    description: 'Anti-jam command transmitter over a USRP. Pair with
+      aj_command_rx_uhd.grc, launched at the same --level with the same key. Bring
+      the link up from level 0 upwards; the first level that fails names the layer
+      at fault.'
+    generate_options: qt_gui
+    id: aj_command_tx_uhd
+    output_language: python
+    run: 'True'
+    title: AJ Command TX - UHD
+  states:
+    coordinate: [8, 8]
+    rotation: 0
+    state: enabled
+blocks:
+- name: level
+  id: parameter
+  parameters:
+    alias: ''
+    comment: 'Feature level 0-6. Must match the receiver''s. A launch parameter and
+      not a live control: each level changes which processing stages exist, and a
+      running flowgraph cannot be rewired. Relaunch to change it.
+
+      Level 6 is a special case here. Its LO retuning is computed but not applied to
+      the radio: wiring a TimedRetuner to this flowgraph''s USRP is application work
+      that GRC cannot express, so on hardware level 6 behaves as level 5 with the
+      schedule recorded. Use 5 unless you have wired the retuner yourself.'
+    hide: none
+    label: Feature Level (0-6)
+    short_id: l
+    type: intx
+    value: '0'
+  states:
+    coordinate: [8, 84]
+    rotation: 0
+    state: enabled
+- name: import_gpsk
+  id: import
+  parameters:
+    alias: ''
+    comment: ''
+    imports: from gpsk_comms.levels import LEVEL_NAMES, profile
+  states:
+    coordinate: [200, 12]
+    rotation: 0
+    state: enabled
+- name: import_key
+  id: import
+  parameters:
+    alias: ''
+    comment: ''
+    imports: from gpsk_comms.security import load_master_key
+  states:
+    coordinate: [200, 76]
+    rotation: 0
+    state: enabled
+- name: master_key
+  id: variable
+  parameters:
+    comment: 'Loaded from GPSK_COMMS_KEY_FILE or GPSK_COMMS_KEY, never written into
+      this file. Both ends must hold the same key, so generate one once with
+      "python3 -m gpsk_comms.security --output link.key" and copy it to the other
+      machine over a trusted path.
+
+      Asked for only from level 2, which is the first level that needs one. GRC
+      evaluates this expression when it opens the file, so calling load_master_key()
+      unconditionally would make the flowgraph refuse to open on a machine that has
+      no key yet -- including for levels 0 and 1, whose whole purpose is to prove the
+      radio before key distribution is working.'
+    value: load_master_key() if level >= 2 else None
+  states:
+    coordinate: [8, 300]
+    rotation: 0
+    state: enabled
+- name: samp_rate
+  id: variable
+  parameters:
+    comment: 'The chip rate. Keep it low: the receiving end is Python and GNU Radio
+      gives each block its own thread contending for one GIL, so a few hundred
+      kilosamples per second is the budget on a typical host. On a real radio there
+      is no backpressure to save you -- exceed it and the USRP drops samples.'
+    value: '500000'
+  states:
+    coordinate: [8, 156]
+    rotation: 0
+    state: enabled
+- name: spreading_factor
+  id: variable
+  parameters:
+    comment: 'Must match the receiver.'
+    value: '127'
+  states:
+    coordinate: [152, 156]
+    rotation: 0
+    state: enabled
+- name: dwell_us
+  id: variable
+  parameters:
+    comment: 'Hop dwell. Must match the receiver. Levels 5 and 6 refuse to build if
+      a burst plus the receiver''s search window will not fit inside one.'
+    value: '200000'
+  states:
+    coordinate: [296, 156]
+    rotation: 0
+    state: enabled
+- name: repeat_rate
+  id: variable
+  parameters:
+    comment: 'Bursts per second. Ignored from level 5 up, where exactly one burst is
+      sent per hop dwell, aligned to the dwell boundary.'
+    value: '8'
+  states:
+    coordinate: [424, 156]
+    rotation: 0
+    state: enabled
+- name: center_freq
+  id: variable
+  parameters:
+    comment: 'Must match the receiver.'
+    value: '2440000000'
+  states:
+    coordinate: [560, 156]
+    rotation: 0
+    state: enabled
+- name: device_addr
+  id: variable
+  parameters:
+    comment: 'Set to your own radio, e.g. "serial=337D3DF". An empty string takes
+      the first device found.'
+    value: '""'
+  states:
+    coordinate: [704, 156]
+    rotation: 0
+    state: enabled
+- name: antenna
+  id: variable
+  parameters:
+    comment: ''
+    value: '"TX/RX"'
+  states:
+    coordinate: [856, 156]
+    rotation: 0
+    state: enabled
+- name: bandwidth
+  id: variable
+  parameters:
+    comment: ''
+    value: samp_rate
+  states:
+    coordinate: [960, 156]
+    rotation: 0
+    state: enabled
+- name: clock_source
+  id: variable
+  parameters:
+    comment: ''
+    value: '"internal"'
+  states:
+    coordinate: [704, 228]
+    rotation: 0
+    state: enabled
+- name: time_source
+  id: variable
+  parameters:
+    comment: 'Hopping derives the slot from the host wall clock, independently at
+      each end -- there is no reverse channel to negotiate over. The two clocks must
+      therefore agree to well within one dwell. Ordinary NTP is ample at a 200 ms
+      dwell; a free-running clock that has never been set is not. If level 4 passes
+      and level 5 does not, suspect time sync before suspecting the RF.'
+    value: '"internal"'
+  states:
+    coordinate: [856, 228]
+    rotation: 0
+    state: enabled
+- name: level_summary
+  id: variable
+  parameters:
+    comment: ''
+    value: "'level %d (%s) -- %s' % (level, LEVEL_NAMES[level], ', '.join(profile(level).enabled)
+      or 'bare point-to-point link, no key')"
+  states:
+    coordinate: [560, 228]
+    rotation: 0
+    state: enabled
+- name: level_label
+  id: variable_qtgui_label
+  parameters:
+    comment: ''
+    formatter: None
+    gui_hint: 0,0,1,2
+    label: Transmitting at
+    type: string
+    value: level_summary
+  states:
+    coordinate: [424, 228]
+    rotation: 0
+    state: enabled
+- name: tx_gain
+  id: variable_qtgui_range
+  parameters:
+    comment: 'Live. Start low and raise it only as far as the receiver needs.'
+    gui_hint: 3,0,1,2
+    label: TX gain (dB)
+    min_len: '200'
+    orient: Qt.Horizontal
+    rangeType: float
+    start: '0'
+    step: '1'
+    stop: '89'
+    value: '60'
+    widget: counter_slider
+  states:
+    coordinate: [8, 228]
+    rotation: 0
+    state: enabled
+- name: keyboard
+  id: gpsk_comms_keyboard_command_source
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: 'Click this panel to give it focus, then hold W/A/S/D to drive and press
+      space to stop.'
+    gui_hint: 1,0,2,1
+  states:
+    coordinate: [8, 424]
+    rotation: 0
+    state: enabled
+- name: tx
+  id: gpsk_comms_aj_command_tx
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: 'hold_to_send is False so the link idles at "stop" and transmits
+      continuously, which is what you want while bringing a link up: the receiver
+      shows traffic straight away instead of nothing until a key is pressed. Set it
+      True for a deployment, where releasing the controls should silence the
+      transmitter and let the receiver''s watchdog command a stop.'
+    dwell_us: dwell_us
+    hold_to_send: 'False'
+    interleave_depth: '17'
+    level: level
+    master_key: master_key
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    repeat_rate: repeat_rate
+    sample_rate: samp_rate
+    spreading_factor: spreading_factor
+  states:
+    coordinate: [304, 420]
+    rotation: 0
+    state: enabled
+- name: usrp_sink
+  id: uhd_usrp_sink
+  parameters:
+    affinity: ''
+    alias: ''
+    ant0: antenna
+    bw0: bandwidth
+    center_freq0: center_freq
+    clock_source0: clock_source
+    comment: ''
+    dev_addr: device_addr
+    gain0: tx_gain
+    nchan: '1'
+    samp_rate: samp_rate
+    time_source0: time_source
+    type: fc32
+  states:
+    coordinate: [616, 396]
+    rotation: 0
+    state: enabled
+- name: spectrum
+  id: qtgui_freq_sink_x
+  parameters:
+    affinity: ''
+    alias: ''
+    autoscale: 'False'
+    average: '0.2'
+    axislabels: 'True'
+    bw: samp_rate
+    comment: 'What is going to the antenna: narrow at levels 0-2, spread across the
+      band at 3 and up.'
+    ctrlpanel: 'False'
+    fc: center_freq
+    fftsize: '1024'
+    freqhalf: 'True'
+    grid: 'True'
+    gui_hint: 1,1,2,1
+    label: Relative Gain
+    label1: transmitted
+    legend: 'True'
+    name: '"Transmitted spectrum"'
+    nconnections: '1'
+    norm_window: 'False'
+    showports: 'False'
+    tr_chan: '0'
+    tr_level: '0.0'
+    tr_mode: qtgui.TRIG_MODE_FREE
+    tr_tag: '""'
+    type: complex
+    units: dB
+    update_time: '0.10'
+    width1: '1'
+    wintype: window.WIN_BLACKMAN_hARRIS
+    ymax: '10'
+    ymin: '-110'
+  states:
+    coordinate: [616, 540]
+    rotation: 0
+    state: enabled
+- name: tx_diagnostics
+  id: blocks_message_debug
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: 'Quiet unless something is wrong. A clock_reanchor event means this host
+      cannot keep up with samp_rate and the transmitter has fallen behind the wall
+      clock its hop schedule comes from -- lower samp_rate if it repeats, because at
+      level 5 and above it will desynchronise the link.'
+    en_uvec: 'True'
+    log_level: info
+  states:
+    coordinate: [616, 684]
+    rotation: 0
+    state: enabled
+connections:
+- [keyboard, command, tx, command]
+- [tx, '0', usrp_sink, '0']
+- [tx, '0', spectrum, '0']
+- [tx, diagnostics, tx_diagnostics, print]
+metadata:
+  file_format: 1

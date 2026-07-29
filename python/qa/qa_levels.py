@@ -11,6 +11,7 @@ see the note in examples/level_ladder.py -- because what these tests need is
 real-time headroom, not processing gain.
 """
 
+import pathlib
 import time
 import unittest
 
@@ -48,6 +49,15 @@ SAMPLE_RATE = 500_000
 SPREADING_FACTOR = 127
 DWELL_US = 200_000
 REPEAT_RATE = 8.0
+
+
+def _yaml_module():
+    """Return the yaml module, or None. GRC requires it; this suite need not."""
+    try:
+        import yaml
+    except ImportError:
+        return None
+    return yaml
 
 
 def command_message(command, pressed=True):
@@ -507,6 +517,94 @@ class AuthenticationBoundaryTest(unittest.TestCase):
                 level=2,
             )._decoder._replay
         )
+
+
+class UhdFlowgraphPairTest(unittest.TestCase):
+    """The paired UHD flowgraphs must agree on every shared link parameter.
+
+    aj_command_tx_uhd.grc and aj_command_rx_uhd.grc run on two machines and have
+    no way to negotiate: every parameter that shapes the waveform has to be
+    identical in both files or the link simply never decodes. That failure is
+    invisible without hardware to try it on, and it looks like an RF problem
+    rather than an editing mistake, so it is checked here instead.
+    """
+
+    EXAMPLES = pathlib.Path(__file__).resolve().parent.parent.parent / "examples"
+
+    #: Variables that must hold the same value at both ends. Antenna and gain are
+    #: deliberately absent: those legitimately differ between a transmitter and a
+    #: receiver.
+    SHARED_VARIABLES = (
+        "samp_rate",
+        "spreading_factor",
+        "dwell_us",
+        "center_freq",
+        "master_key",
+    )
+
+    #: Block parameters that must match between the tx and rx hier blocks.
+    SHARED_BLOCK_PARAMETERS = ("interleave_depth", "level", "dwell_us",
+                               "sample_rate", "spreading_factor", "master_key")
+
+    def _load(self, name):
+        yaml = _yaml_module()
+        with open(self.EXAMPLES / name) as handle:
+            return yaml.safe_load(handle)
+
+    @staticmethod
+    def _blocks(flowgraph):
+        return {block["name"]: block for block in flowgraph["blocks"]}
+
+    def setUp(self):
+        if _yaml_module() is None:
+            self.skipTest("PyYAML is not available to parse the flowgraphs")
+        self.tx = self._blocks(self._load("aj_command_tx_uhd.grc"))
+        self.rx = self._blocks(self._load("aj_command_rx_uhd.grc"))
+
+    def test_shared_variables_match(self):
+        for name in self.SHARED_VARIABLES:
+            self.assertIn(name, self.tx, f"{name} missing from the transmitter")
+            self.assertIn(name, self.rx, f"{name} missing from the receiver")
+            self.assertEqual(
+                self.tx[name]["parameters"]["value"],
+                self.rx[name]["parameters"]["value"],
+                f"{name} differs between the paired UHD flowgraphs",
+            )
+
+    def test_shared_block_parameters_match(self):
+        transmitter = self.tx["tx"]["parameters"]
+        receiver = self.rx["rx"]["parameters"]
+        for name in self.SHARED_BLOCK_PARAMETERS:
+            self.assertEqual(
+                transmitter[name], receiver[name],
+                f"{name} differs between the tx and rx blocks",
+            )
+
+    def test_both_default_to_the_bottom_of_the_ladder(self):
+        """Level 0 is the right place to start, and it needs no key.
+
+        It is also what lets the flowgraphs open on a machine that has no key
+        yet, because GRC evaluates the master key expression at load time.
+        """
+        for side, blocks_by_name in (("tx", self.tx), ("rx", self.rx)):
+            self.assertEqual(blocks_by_name["level"]["parameters"]["value"], "0", side)
+            self.assertEqual(blocks_by_name["level"]["id"], "parameter", side)
+
+    def test_the_key_is_only_demanded_from_level_two(self):
+        for side, blocks_by_name in (("tx", self.tx), ("rx", self.rx)):
+            expression = blocks_by_name["master_key"]["parameters"]["value"]
+            self.assertIn("level >= 2", expression, side)
+            self.assertNotIn("generate_master_key", expression,
+                             f"{side} must load a shared key, not generate its own")
+
+
+def _yaml_module():
+    """Return the yaml module, or None. GRC needs it, but the suite need not."""
+    try:
+        import yaml
+    except ImportError:
+        return None
+    return yaml
 
 
 class BackwardCompatibilityTest(unittest.TestCase):

@@ -3,6 +3,8 @@ install(
         gmsk_command_loopback.grc
         aj_command_loopback.grc
         aj_command_ladder_gui.grc
+        aj_command_tx_uhd.grc
+        aj_command_rx_uhd.grc
         gmsk_command_tx_uhd.grc
         gmsk_keyboard_tx_uhd.grc
         gmsk_command_rx_uhd.grc

@@ -20,6 +20,9 @@ and an adjustable jammer::
     grcc examples/aj_command_ladder_gui.grc && python3 aj_command_ladder_gui.py --level 0
 
 Use this script to find which level breaks and that flowgraph to watch it happen.
+Over a real radio the same ladder is driven by the paired flowgraphs
+examples/aj_command_tx_uhd.grc and examples/aj_command_rx_uhd.grc, launched at the
+same --level on both ends.
 
 Everything runs in simulation. No radio is involved and nothing is transmitted.
 Passing here proves the layers agree with each other; it does not prove the link

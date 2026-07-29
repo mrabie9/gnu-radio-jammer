@@ -1,0 +1,362 @@
+options:
+  parameters:
+    author: gpsk_comms
+    catch_exceptions: 'True'
+    category: Custom
+    description: 'Anti-jam command receiver over a USRP. Pair with
+      aj_command_tx_uhd.grc, launched at the same --level with the same key. Every
+      link parameter below must match the transmitter''s.'
+    generate_options: qt_gui
+    id: aj_command_rx_uhd
+    output_language: python
+    run: 'True'
+    title: AJ Command RX - UHD
+  states:
+    coordinate: [8, 8]
+    rotation: 0
+    state: enabled
+blocks:
+- name: level
+  id: parameter
+  parameters:
+    alias: ''
+    comment: 'Feature level 0-6. Must match the transmitter''s. A launch parameter
+      and not a live control: each level changes which processing stages exist, and
+      a running flowgraph cannot be rewired. Relaunch to change it.
+
+      A mismatch delivers nothing, with one exception worth knowing: across the
+      spreading rung it can limp through on a strong signal having thrown away
+      essentially all of its processing gain, so a mismatched pair may look like it
+      is working until the range or the jamming increases.
+
+      Level 6''s LO retuning is computed but not applied to the radio here -- see the
+      note in the transmitter. Use 5 unless you have wired a TimedRetuner yourself.'
+    hide: none
+    label: Feature Level (0-6)
+    short_id: l
+    type: intx
+    value: '0'
+  states:
+    coordinate: [8, 84]
+    rotation: 0
+    state: enabled
+- name: import_gpsk
+  id: import
+  parameters:
+    alias: ''
+    comment: ''
+    imports: from gpsk_comms.levels import LEVEL_NAMES, profile
+  states:
+    coordinate: [200, 12]
+    rotation: 0
+    state: enabled
+- name: import_key
+  id: import
+  parameters:
+    alias: ''
+    comment: ''
+    imports: from gpsk_comms.security import load_master_key
+  states:
+    coordinate: [200, 76]
+    rotation: 0
+    state: enabled
+- name: master_key
+  id: variable
+  parameters:
+    comment: 'Loaded from GPSK_COMMS_KEY_FILE or GPSK_COMMS_KEY, never written into
+      this file. Must be byte-for-byte the key the transmitter holds: it derives the
+      authentication tag, the spreading code, the sync word and the hop order, so a
+      wrong key fails at every one of them at once.
+
+      Asked for only from level 2, which is the first level that needs one. GRC
+      evaluates this expression when it opens the file, so calling load_master_key()
+      unconditionally would make the flowgraph refuse to open on a machine that has
+      no key yet -- including for levels 0 and 1, whose whole purpose is to prove the
+      radio before key distribution is working.'
+    value: load_master_key() if level >= 2 else None
+  states:
+    coordinate: [8, 300]
+    rotation: 0
+    state: enabled
+- name: samp_rate
+  id: variable
+  parameters:
+    comment: 'The chip rate, and the parameter most likely to be the problem. This
+      receive chain is Python and GNU Radio gives each block its own thread
+      contending for one GIL, so a few hundred kilosamples per second is the budget
+      on a typical host. A USRP will not wait for you: exceed the budget and it
+      drops samples, which looks exactly like a jammed link.'
+    value: '500000'
+  states:
+    coordinate: [8, 156]
+    rotation: 0
+    state: enabled
+- name: spreading_factor
+  id: variable
+  parameters:
+    comment: 'Must match the transmitter.'
+    value: '127'
+  states:
+    coordinate: [152, 156]
+    rotation: 0
+    state: enabled
+- name: dwell_us
+  id: variable
+  parameters:
+    comment: 'Must match the transmitter.'
+    value: '200000'
+  states:
+    coordinate: [296, 156]
+    rotation: 0
+    state: enabled
+- name: center_freq
+  id: variable
+  parameters:
+    comment: 'Must match the transmitter.'
+    value: '2440000000'
+  states:
+    coordinate: [424, 156]
+    rotation: 0
+    state: enabled
+- name: device_addr
+  id: variable
+  parameters:
+    comment: 'Set to your own radio, e.g. "serial=337D3DF". An empty string takes
+      the first device found.'
+    value: '""'
+  states:
+    coordinate: [576, 156]
+    rotation: 0
+    state: enabled
+- name: antenna
+  id: variable
+  parameters:
+    comment: ''
+    value: '"RX2"'
+  states:
+    coordinate: [728, 156]
+    rotation: 0
+    state: enabled
+- name: bandwidth
+  id: variable
+  parameters:
+    comment: ''
+    value: samp_rate
+  states:
+    coordinate: [832, 156]
+    rotation: 0
+    state: enabled
+- name: clock_source
+  id: variable
+  parameters:
+    comment: ''
+    value: '"internal"'
+  states:
+    coordinate: [576, 228]
+    rotation: 0
+    state: enabled
+- name: time_source
+  id: variable
+  parameters:
+    comment: 'Hopping derives the slot from the host wall clock, independently at
+      each end. The two clocks must agree to well within one dwell; ordinary NTP is
+      ample at a 200 ms dwell. If level 4 passes and level 5 does not, suspect time
+      sync before suspecting the RF.'
+    value: '"internal"'
+  states:
+    coordinate: [728, 228]
+    rotation: 0
+    state: enabled
+- name: level_summary
+  id: variable
+  parameters:
+    comment: ''
+    value: "'level %d (%s) -- %s' % (level, LEVEL_NAMES[level], ', '.join(profile(level).enabled)
+      or 'bare point-to-point link, no key')"
+  states:
+    coordinate: [424, 228]
+    rotation: 0
+    state: enabled
+- name: level_label
+  id: variable_qtgui_label
+  parameters:
+    comment: ''
+    formatter: None
+    gui_hint: 0,0,1,2
+    label: Receiving at
+    type: string
+    value: level_summary
+  states:
+    coordinate: [296, 228]
+    rotation: 0
+    state: enabled
+- name: rx_gain
+  id: variable_qtgui_range
+  parameters:
+    comment: 'Live. Raise it until the spectrum shows the signal clear of the noise
+      floor, then stop -- more gain past that point only brings the front end closer
+      to compression, which a jammer is happy to exploit.'
+    gui_hint: 3,0,1,2
+    label: RX gain (dB)
+    min_len: '200'
+    orient: Qt.Horizontal
+    rangeType: float
+    start: '0'
+    step: '1'
+    stop: '76'
+    value: '40'
+    widget: counter_slider
+  states:
+    coordinate: [8, 228]
+    rotation: 0
+    state: enabled
+- name: usrp_source
+  id: uhd_usrp_source
+  parameters:
+    affinity: ''
+    alias: ''
+    ant0: antenna
+    bw0: bandwidth
+    center_freq0: center_freq
+    clock_source0: clock_source
+    comment: ''
+    dev_addr: device_addr
+    gain0: rx_gain
+    nchan: '1'
+    samp_rate: samp_rate
+    time_source0: time_source
+    type: fc32
+  states:
+    coordinate: [8, 428]
+    rotation: 0
+    state: enabled
+- name: rx
+  id: gpsk_comms_aj_command_rx
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: 'Failsafe Grace Period is zero, so the link commands "stop" the moment
+      the watchdog expires. Raise it only deliberately: a moving vehicle continues
+      under its last command for that long after the link drops.'
+    detection_threshold: '0.25'
+    dwell_us: dwell_us
+    grace_period: '0.0'
+    interleave_depth: '17'
+    level: level
+    master_key: master_key
+    sample_rate: samp_rate
+    spreading_factor: spreading_factor
+    watchdog_timeout: '2.0'
+  states:
+    coordinate: [328, 428]
+    rotation: 0
+    state: enabled
+- name: spectrum
+  id: qtgui_freq_sink_x
+  parameters:
+    affinity: ''
+    alias: ''
+    autoscale: 'False'
+    average: '0.2'
+    axislabels: 'True'
+    bw: samp_rate
+    comment: 'The band as received, jammers included. This is the first thing to look
+      at when nothing decodes: if the wanted signal is not visible here, the problem
+      is antennas, gain or frequency and no amount of anti-jam processing will help.'
+    ctrlpanel: 'False'
+    fc: center_freq
+    fftsize: '1024'
+    freqhalf: 'True'
+    grid: 'True'
+    gui_hint: 1,1,1,1
+    label: Relative Gain
+    label1: received
+    legend: 'True'
+    name: '"Received spectrum"'
+    nconnections: '1'
+    norm_window: 'False'
+    showports: 'False'
+    tr_chan: '0'
+    tr_level: '0.0'
+    tr_mode: qtgui.TRIG_MODE_FREE
+    tr_tag: '""'
+    type: complex
+    units: dB
+    update_time: '0.10'
+    width1: '1'
+    wintype: window.WIN_BLACKMAN_hARRIS
+    ymax: '10'
+    ymin: '-110'
+  states:
+    coordinate: [328, 300]
+    rotation: 0
+    state: enabled
+- name: waterfall
+  id: qtgui_waterfall_sink_x
+  parameters:
+    affinity: ''
+    alias: ''
+    axislabels: 'True'
+    bw: samp_rate
+    color1: '0'
+    comment: 'At level 5 and above the bursts step between sub-channels once per
+      dwell. Seeing them move here, and commands still arriving, is the confirmation
+      that both ends are following the same hop schedule.'
+    fc: center_freq
+    fftsize: '1024'
+    freqhalf: 'True'
+    grid: 'False'
+    gui_hint: 2,1,1,1
+    int_max: '10'
+    int_min: '-110'
+    label1: ''
+    legend: 'True'
+    name: '"Waterfall -- hopping is visible here from level 5"'
+    nconnections: '1'
+    showports: 'False'
+    type: complex
+    update_time: '0.10'
+    wintype: window.WIN_BLACKMAN_hARRIS
+  states:
+    coordinate: [328, 556]
+    rotation: 0
+    state: enabled
+- name: command_debug
+  id: blocks_message_debug
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: 'Delivered commands. link_state reports ok, degraded, jammed or
+      no_signal; "jammed" means energy is present but nothing authenticates, which
+      is what both heavy jamming and an active forgery attempt look like. A timeout
+      entry is the failsafe commanding a stop.'
+    en_uvec: 'True'
+    log_level: info
+  states:
+    coordinate: [648, 396]
+    rotation: 0
+    state: enabled
+- name: rx_diagnostics
+  id: blocks_message_debug
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: 'Per-frame events, and the receiver''s main instrument while bringing a
+      link up. Chatty by design: one valid_frame per burst when all is well. A run
+      of auth_failure with no valid_frame means bursts are being found but not
+      authenticated -- a key or level mismatch, or jamming. Nothing at all means the
+      correlator is not finding bursts, so look at the spectrum first.'
+    en_uvec: 'True'
+    log_level: info
+  states:
+    coordinate: [648, 524]
+    rotation: 0
+    state: enabled
+connections:
+- [usrp_source, '0', rx, '0']
+- [usrp_source, '0', spectrum, '0']
+- [usrp_source, '0', waterfall, '0']
+- [rx, command, command_debug, print]
+- [rx, diagnostics, rx_diagnostics, print]
+metadata:
+  file_format: 1
