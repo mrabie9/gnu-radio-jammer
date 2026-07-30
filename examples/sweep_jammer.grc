@@ -51,74 +51,31 @@ blocks:
     comment: Which allocation(s) to sweep. Changing this rebuilds the LO plan live.
     gui_hint: 0,0,1,2
     label: Band(s) to jam
-    label0: 2.4 GHz ISM (2392-2492 MHz)
-    label1: 5.2 GHz (5190-5290 MHz)
-    label2: Both bands
-    label3: 5210 MHz only (single channel)
-    label4: ''
-    labels: '[]'
-    num_opts: '4'
-    option0: '"2g4"'
-    option1: '"5g2"'
-    option2: '"both"'
-    option3: '"5210"'
-    option4: '4'
-    options: '[0, 1, 2, 3]'
+    num_opts: '7'
     orient: Qt.QVBoxLayout
     type: string
-    value: '"2g4"'
+    value: '"both"'
     widget: combo_box
+    option0: '"both"'
+    label0: Both bands
+    option1: '"5g"'
+    label1: 5.2 GHz full (5190-5290)
+    option2: '"5g_top"'
+    label2: 5.2 GHz top half (5240-5290)
+    option3: '"5g_bottom"'
+    label3: 5.2 GHz bottom half (5190-5240)
+    option4: '"4g"'
+    label4: 2.4 GHz full (2392-2492)
+    option5: '"4g_top"'
+    label5: 2.4 GHz top half (2442-2492)
+    option6: '"4g_bottom"'
+    label6: 2.4 GHz bottom half (2392-2442)
+    options: '[0, 1, 2, 3, 4, 5, 6]'
   states:
     bus_sink: false
     bus_source: false
     bus_structure:
     coordinate: [776, 84]
-    rotation: 0
-    state: enabled
-- name: min_freq_mhz
-  id: variable_qtgui_range
-  parameters:
-    comment: Lower edge of the swept range, in MHz. Only applies when a single 100 MHz band is selected -- ignored for Both bands and the 5210 spot. Leave at the band edge for no narrowing. Live.
-    gui_hint: 0,2,1,1
-    label: Min freq (MHz, single band)
-    min_len: '200'
-    orient: QtCore.Qt.Horizontal
-    rangeType: float
-    start: '2392'
-    step: '1'
-    stop: '5290'
-    value: '2392'
-    widget: counter_slider
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure:
-    coordinate:
-    - 968
-    - 84
-    rotation: 0
-    state: enabled
-- name: max_freq_mhz
-  id: variable_qtgui_range
-  parameters:
-    comment: Upper edge of the swept range, in MHz. Only applies when a single 100 MHz band is selected. Live.
-    gui_hint: 1,2,1,1
-    label: Max freq (MHz, single band)
-    min_len: '200'
-    orient: QtCore.Qt.Horizontal
-    rangeType: float
-    start: '2392'
-    step: '1'
-    stop: '5290'
-    value: '5290'
-    widget: counter_slider
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure:
-    coordinate:
-    - 968
-    - 204
     rotation: 0
     state: enabled
 - name: center_freq
@@ -233,19 +190,20 @@ blocks:
   id: epy_block
   parameters:
     _source_code: |
-      """Chirp sweep jammer with LO stepping across two 100 MHz bands.
+      """Chirp sweep jammer with LO stepping across the 2.4 and 5.2 GHz bands.
 
       A linear chirp is generated across +/- samp_rate/2. The block also steps the
       USRP local oscillator by publishing 'freq' command messages on its message
-      port; wire that port to a UHD Sink's command port and the LO tiles each band
-      and alternates between them, covering far more spectrum than one sample_rate
-      window. Sample rate, speed, dwell, band selection and the min/max narrowing
-      are all live: work() rebuilds the LO plan whenever any of them change.
+      port; wire that port to a UHD Sink's command port and the LO tiles the
+      selected band(s), covering far more spectrum than one sample_rate window.
+      Sample rate, speed, dwell and band selection are all live: work() rebuilds
+      the LO plan whenever the sample rate or band selection changes.
 
-      When a single 100 MHz band is selected (not "both", not the 5210 spot), the
-      [min_freq, max_freq] window narrows the swept range to its intersection with
-      that band. It is ignored for "both" and for the single-channel spot. A value
-      of 0 means "unset" (use the band edge).
+      Band presets:
+        both        both full 100 MHz bands
+        5g / 4g     a full band (5190-5290 / 2392-2492 MHz)
+        *_bottom    the lower 50 MHz of that band
+        *_top       the upper 50 MHz of that band
       """
 
       import math
@@ -255,21 +213,26 @@ blocks:
       import pmt
       from gnuradio import gr
 
-      # The two target bands as (low_hz, high_hz), matching the anti-jam link's
-      # 2442 MHz and 5240 MHz allocations. A zero-width entry is a single-frequency
-      # spot: one LO step, no hopping, with the chirp still spreading across the
-      # sample_rate window.
+      # Band edges (low_hz, high_hz) and their midpoints, matching the anti-jam
+      # link's 2442 MHz and 5240 MHz allocations.
+      _FOUR = (2_392_000_000, 2_492_000_000)
+      _FIVE = (5_190_000_000, 5_290_000_000)
+      _FOUR_MID = (_FOUR[0] + _FOUR[1]) // 2
+      _FIVE_MID = (_FIVE[0] + _FIVE[1]) // 2
+
       _BANDS = {
-          "2g4": [(2_392_000_000, 2_492_000_000)],
-          "5g2": [(5_190_000_000, 5_290_000_000)],
-          "both": [(2_392_000_000, 2_492_000_000), (5_190_000_000, 5_290_000_000)],
-          "5210": [(5_210_000_000, 5_210_000_000)],
+          "both": [_FOUR, _FIVE],
+          "5g": [_FIVE],
+          "5g_top": [(_FIVE_MID, _FIVE[1])],
+          "5g_bottom": [(_FIVE[0], _FIVE_MID)],
+          "4g": [_FOUR],
+          "4g_top": [(_FOUR_MID, _FOUR[1])],
+          "4g_bottom": [(_FOUR[0], _FOUR_MID)],
       }
 
 
       class blk(gr.sync_block):
-          def __init__(self, samp_rate=20e6, speed=1000.0, dwell=0.02, bands="both",
-                       min_freq=0.0, max_freq=0.0):
+          def __init__(self, samp_rate=20e6, speed=1000.0, dwell=0.02, bands="both"):
               gr.sync_block.__init__(
                   self, name="Chirp Sweep Jammer", in_sig=None,
                   out_sig=[np.complex64],
@@ -278,8 +241,6 @@ blocks:
               self.speed = float(speed)
               self.dwell = float(dwell)
               self.bands = bands
-              self.min_freq = float(min_freq)
-              self.max_freq = float(max_freq)
               self.message_port_register_out(pmt.intern("command"))
               self._count = 0
               self._phase = 0.0
@@ -290,21 +251,9 @@ blocks:
               # The first real plan build and LO tune happen in start(), once the
               # command port is connected -- publishing here would go nowhere.
 
-          def _band_list(self):
-              band_list = _BANDS.get(self.bands, _BANDS["both"])
-              # Narrow only a single 100 MHz band; "both" and the spot are left alone.
-              if len(band_list) == 1 and band_list[0][1] > band_list[0][0] \
-                      and (self.min_freq > 0 or self.max_freq > 0):
-                  low, high = band_list[0]
-                  lo = max(low, self.min_freq) if self.min_freq > 0 else low
-                  hi = min(high, self.max_freq) if self.max_freq > 0 else high
-                  if hi > lo:
-                      band_list = [(lo, hi)]
-              return band_list
-
           def _rebuild_plan(self):
               centres = []
-              for low, high in self._band_list():
+              for low, high in _BANDS.get(self.bands, _BANDS["both"]):
                   width = high - low
                   steps = max(1, math.ceil(width / self.samp_rate))
                   step_width = width / steps
@@ -312,13 +261,13 @@ blocks:
                       centres.append(low + step_width * (k + 0.5))
               self._plan = centres
               self._index = 0
-              self._built_for = (self.samp_rate, self.bands, self.min_freq, self.max_freq)
+              self._built_for = (self.samp_rate, self.bands)
               self._retune(self._plan[0])
               self._next_step = time.monotonic() + self.dwell
 
           def _retune(self, freq):
               # Print the current centre frequency on every LO step, so the console
-              # shows the sweep walking across the bands.
+              # shows the sweep walking across the band(s).
               print("[sweep jammer] centre frequency -> %.3f MHz" % (freq / 1e6),
                     flush=True)
               self.message_port_pub(
@@ -331,8 +280,7 @@ blocks:
               return True
 
           def work(self, input_items, output_items):
-              if (self.samp_rate, self.bands, self.min_freq,
-                      self.max_freq) != self._built_for:
+              if (self.samp_rate, self.bands) != self._built_for:
                   self._rebuild_plan()
 
               out = output_items[0]
@@ -359,8 +307,6 @@ blocks:
     minoutbuf: '0'
     samp_rate: samp_rate
     speed: speed
-    min_freq: min_freq_mhz*1e6
-    max_freq: max_freq_mhz*1e6
   states:
     _io_cache: ('Chirp Sweep Jammer', 'blk', [('samp_rate', '20000000.0'), ('speed', '1000.0'), ('dwell', '0.02'), ('bands', "'both'")], [], [('0', 'complex', 1), ('command', 'message', 1)], '', ['bands', 'dwell', 'samp_rate', 'speed'])
     bus_sink: false

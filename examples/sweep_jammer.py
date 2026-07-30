@@ -19,7 +19,7 @@ Usage::
 
     python3 examples/sweep_jammer.py                       # both bands, 20 Msps
     python3 examples/sweep_jammer.py --sample-rate 40e6 --speed 5000
-    python3 examples/sweep_jammer.py --bands 2g4 --gain 70
+    python3 examples/sweep_jammer.py --bands 5g_top --gain 70
     python3 examples/sweep_jammer.py --dry-run             # no radio, print plan
 
 This is a standalone tool: it does not import the gpsk_comms link at all.
@@ -38,18 +38,21 @@ import time
 
 import numpy
 
-# The two 100 MHz bands, as (low_hz, high_hz). These match the anti-jam link's
-# BAND_2G4 (2442 MHz centre) and BAND_5G2 (5240 MHz centre) allocations. A
-# zero-width entry is a single-frequency "spot": one LO step, no hopping, with
-# the chirp still spreading across the instantaneous sample_rate window.
-BAND_2G4 = (2_392_000_000, 2_492_000_000)
-BAND_5G2 = (5_190_000_000, 5_290_000_000)
-SPOT_5210 = (5_210_000_000, 5_210_000_000)
+# Band edges (low_hz, high_hz) and midpoints, matching the anti-jam link's
+# 2442 MHz and 5240 MHz allocations. Each named preset is either a full 100 MHz
+# band, its lower 50 MHz (*_bottom) or its upper 50 MHz (*_top).
+BAND_4G = (2_392_000_000, 2_492_000_000)
+BAND_5G = (5_190_000_000, 5_290_000_000)
+_4G_MID = (BAND_4G[0] + BAND_4G[1]) // 2
+_5G_MID = (BAND_5G[0] + BAND_5G[1]) // 2
 BANDS = {
-    "2g4": [BAND_2G4],
-    "5g2": [BAND_5G2],
-    "both": [BAND_2G4, BAND_5G2],
-    "5210": [SPOT_5210],
+    "both": [BAND_4G, BAND_5G],
+    "5g": [BAND_5G],
+    "5g_top": [(_5G_MID, BAND_5G[1])],
+    "5g_bottom": [(BAND_5G[0], _5G_MID)],
+    "4g": [BAND_4G],
+    "4g_top": [(_4G_MID, BAND_4G[1])],
+    "4g_bottom": [(BAND_4G[0], _4G_MID)],
 }
 
 
@@ -69,24 +72,6 @@ def lo_plan(band_list, sample_rate):
         for k in range(steps):
             centres.append(low + step_width * (k + 0.5))
     return centres
-
-
-def narrow_band(band_list, min_freq, max_freq):
-    """Narrow a single 100 MHz band to the [min_freq, max_freq] intersection.
-
-    This only applies when exactly one wide band is selected -- it is a no-op for
-    ``both`` (two bands) and for the ``5210`` single-channel spot (zero width). A
-    frequency of 0 means "unset", so the corresponding band edge is kept. If the
-    requested window does not overlap the band, the full band is left in place.
-    """
-    if len(band_list) != 1:
-        return band_list
-    low, high = band_list[0]
-    if high <= low or (min_freq <= 0 and max_freq <= 0):
-        return band_list
-    lo = max(low, min_freq) if min_freq > 0 else low
-    hi = min(high, max_freq) if max_freq > 0 else high
-    return [(lo, hi)] if hi > lo else band_list
 
 
 def make_chirp(sample_rate, speed, min_samples):
@@ -179,13 +164,9 @@ def describe_plan(plan, band_list, sample_rate, speed, dwell):
     lines.append(f"  band revisit  {len(plan)*dwell*1e3:g} ms per full cycle")
     for low, high in band_list:
         width = high - low
-        if width == 0:
-            lines.append(f"  spot          {low/1e6:g} MHz single channel, "
-                         f"swept +/-{sample_rate/2e6:g} MHz (no LO hopping)")
-        else:
-            steps = max(1, math.ceil(width / sample_rate))
-            lines.append(f"  band          {low/1e6:g}-{high/1e6:g} MHz "
-                         f"({width/1e6:g} MHz) in {steps} step(s)")
+        steps = max(1, math.ceil(width / sample_rate))
+        lines.append(f"  band          {low/1e6:g}-{high/1e6:g} MHz "
+                     f"({width/1e6:g} MHz) in {steps} step(s)")
     return "\n".join(lines)
 
 
@@ -198,14 +179,8 @@ def main():
     parser.add_argument("--speed", type=float, default=1000.0,
                         help="chirp sweeps per second (default 1000)")
     parser.add_argument("--bands", choices=sorted(BANDS), default="both",
-                        help="which band(s) to jam (default both)")
-    parser.add_argument("--min-freq", type=float, default=0.0,
-                        help="narrow a single band to this lower edge, in Hz; only "
-                             "applies when one band is chosen, ignored for both/5210 "
-                             "(default 0 = band edge)")
-    parser.add_argument("--max-freq", type=float, default=0.0,
-                        help="narrow a single band to this upper edge, in Hz "
-                             "(default 0 = band edge)")
+                        help="which band(s) to jam: both, 5g/4g (full band), or a "
+                             "*_top / *_bottom half (default both)")
     parser.add_argument("--dwell", type=float, default=0.02,
                         help="seconds to hold each LO step before retuning "
                              "(default 0.02)")
@@ -223,11 +198,7 @@ def main():
     if args.sample_rate <= 0 or args.speed <= 0 or args.dwell <= 0:
         parser.error("--sample-rate, --speed and --dwell must all be positive")
 
-    if (args.min_freq > 0 or args.max_freq > 0) and len(BANDS[args.bands]) != 1:
-        print("note: --min-freq/--max-freq only narrow a single band; ignored for "
-              f"--bands {args.bands}", file=sys.stderr)
-
-    band_list = narrow_band(BANDS[args.bands], args.min_freq, args.max_freq)
+    band_list = BANDS[args.bands]
     plan = lo_plan(band_list, args.sample_rate)
 
     print("=" * 72)
