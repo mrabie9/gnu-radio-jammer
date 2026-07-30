@@ -71,6 +71,24 @@ def lo_plan(band_list, sample_rate):
     return centres
 
 
+def narrow_band(band_list, min_freq, max_freq):
+    """Narrow a single 100 MHz band to the [min_freq, max_freq] intersection.
+
+    This only applies when exactly one wide band is selected -- it is a no-op for
+    ``both`` (two bands) and for the ``5210`` single-channel spot (zero width). A
+    frequency of 0 means "unset", so the corresponding band edge is kept. If the
+    requested window does not overlap the band, the full band is left in place.
+    """
+    if len(band_list) != 1:
+        return band_list
+    low, high = band_list[0]
+    if high <= low or (min_freq <= 0 and max_freq <= 0):
+        return band_list
+    lo = max(low, min_freq) if min_freq > 0 else low
+    hi = min(high, max_freq) if max_freq > 0 else high
+    return [(lo, hi)] if hi > lo else band_list
+
+
 def make_chirp(sample_rate, speed, min_samples):
     """A repeating linear chirp across the full +/- sample_rate/2 window.
 
@@ -181,6 +199,13 @@ def main():
                         help="chirp sweeps per second (default 1000)")
     parser.add_argument("--bands", choices=sorted(BANDS), default="both",
                         help="which band(s) to jam (default both)")
+    parser.add_argument("--min-freq", type=float, default=0.0,
+                        help="narrow a single band to this lower edge, in Hz; only "
+                             "applies when one band is chosen, ignored for both/5210 "
+                             "(default 0 = band edge)")
+    parser.add_argument("--max-freq", type=float, default=0.0,
+                        help="narrow a single band to this upper edge, in Hz "
+                             "(default 0 = band edge)")
     parser.add_argument("--dwell", type=float, default=0.02,
                         help="seconds to hold each LO step before retuning "
                              "(default 0.02)")
@@ -198,7 +223,11 @@ def main():
     if args.sample_rate <= 0 or args.speed <= 0 or args.dwell <= 0:
         parser.error("--sample-rate, --speed and --dwell must all be positive")
 
-    band_list = BANDS[args.bands]
+    if (args.min_freq > 0 or args.max_freq > 0) and len(BANDS[args.bands]) != 1:
+        print("note: --min-freq/--max-freq only narrow a single band; ignored for "
+              f"--bands {args.bands}", file=sys.stderr)
+
+    band_list = narrow_band(BANDS[args.bands], args.min_freq, args.max_freq)
     plan = lo_plan(band_list, args.sample_rate)
 
     print("=" * 72)
