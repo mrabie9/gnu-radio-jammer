@@ -242,7 +242,9 @@ def main():
         def set_freq(freq):
             usrp.set_center_freq(freq, 0)
 
-        announce = None
+        def announce(index, freq):
+            print(f"    step {index}: centre frequency -> {freq/1e6:.3f} MHz",
+                  flush=True)
 
     stepper = _lo_stepper(plan, args.dwell, set_freq, announce)
 

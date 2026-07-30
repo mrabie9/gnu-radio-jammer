@@ -195,7 +195,8 @@ blocks:
               self._next_step = 0.0
               self._built_for = None
               self._plan = [2_442_000_000.0]
-              self._rebuild_plan()
+              # The first real plan build and LO tune happen in start(), once the
+              # command port is connected -- publishing here would go nowhere.
 
           # A live QT control writes straight to the attribute (GRC generates
           # e.g. self.chirp.samp_rate = ...), so no setters are needed: work()
@@ -216,6 +217,10 @@ blocks:
               self._next_step = time.monotonic() + self.dwell
 
           def _retune(self, freq):
+              # Print the current centre frequency on every LO step, so the
+              # console shows the sweep walking across the bands.
+              print("[sweep jammer] centre frequency -> %.3f MHz" % (freq / 1e6),
+                    flush=True)
               self.message_port_pub(
                   pmt.intern("command"),
                   pmt.cons(pmt.intern("freq"), pmt.from_double(float(freq))),
