@@ -105,12 +105,14 @@ blocks:
     label0: 2.4 GHz ISM (2392-2492 MHz)
     label1: 5.2 GHz (5190-5290 MHz)
     label2: Both bands
+    label3: 5210 MHz only (single channel)
     labels: '[]'
-    num_opts: '3'
+    num_opts: '4'
     option0: '"2g4"'
     option1: '"5g2"'
     option2: '"both"'
-    options: '[0, 1, 2]'
+    option3: '"5210"'
+    options: '[0, 1, 2, 3]'
     orient: Qt.QVBoxLayout
     type: string
     value: '"both"'
@@ -171,10 +173,13 @@ blocks:
 
       # The two target bands as (low_hz, high_hz), matching the anti-jam link's
       # 2442 MHz and 5240 MHz allocations.
+      # A zero-width entry is a single-frequency spot: one LO step, no hopping,
+      # with the chirp still spreading across the sample_rate window.
       _BANDS = {
           "2g4": [(2_392_000_000, 2_492_000_000)],
           "5g2": [(5_190_000_000, 5_290_000_000)],
           "both": [(2_392_000_000, 2_492_000_000), (5_190_000_000, 5_290_000_000)],
+          "5210": [(5_210_000_000, 5_210_000_000)],
       }
 
 

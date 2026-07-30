@@ -39,10 +39,18 @@ import time
 import numpy
 
 # The two 100 MHz bands, as (low_hz, high_hz). These match the anti-jam link's
-# BAND_2G4 (2442 MHz centre) and BAND_5G2 (5240 MHz centre) allocations.
+# BAND_2G4 (2442 MHz centre) and BAND_5G2 (5240 MHz centre) allocations. A
+# zero-width entry is a single-frequency "spot": one LO step, no hopping, with
+# the chirp still spreading across the instantaneous sample_rate window.
 BAND_2G4 = (2_392_000_000, 2_492_000_000)
 BAND_5G2 = (5_190_000_000, 5_290_000_000)
-BANDS = {"2g4": [BAND_2G4], "5g2": [BAND_5G2], "both": [BAND_2G4, BAND_5G2]}
+SPOT_5210 = (5_210_000_000, 5_210_000_000)
+BANDS = {
+    "2g4": [BAND_2G4],
+    "5g2": [BAND_5G2],
+    "both": [BAND_2G4, BAND_5G2],
+    "5210": [SPOT_5210],
+}
 
 
 def lo_plan(band_list, sample_rate):
@@ -153,9 +161,13 @@ def describe_plan(plan, band_list, sample_rate, speed, dwell):
     lines.append(f"  band revisit  {len(plan)*dwell*1e3:g} ms per full cycle")
     for low, high in band_list:
         width = high - low
-        steps = max(1, math.ceil(width / sample_rate))
-        lines.append(f"  band          {low/1e6:g}-{high/1e6:g} MHz "
-                     f"({width/1e6:g} MHz) in {steps} step(s)")
+        if width == 0:
+            lines.append(f"  spot          {low/1e6:g} MHz single channel, "
+                         f"swept +/-{sample_rate/2e6:g} MHz (no LO hopping)")
+        else:
+            steps = max(1, math.ceil(width / sample_rate))
+            lines.append(f"  band          {low/1e6:g}-{high/1e6:g} MHz "
+                         f"({width/1e6:g} MHz) in {steps} step(s)")
     return "\n".join(lines)
 
 
