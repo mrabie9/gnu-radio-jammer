@@ -1,0 +1,598 @@
+options:
+  parameters:
+    author: gpsk_comms
+    catch_exceptions: 'True'
+    category: Custom
+    description: 'Anti-jam command link looped through a USRP: transmitter and
+      receiver in one flowgraph, joined by the radio rather than by a wire. The
+      middle rung between the simulated loopback and a two-machine link -- both ends
+      share one LO and one host clock, so it isolates the RF chain from clock
+      synchronisation. Launch with --level 0 and work upwards. HARDWARE WARNING:
+      connecting TX/RX to RX2 directly will destroy the receive front end -- use a
+      cable with at least 40 dB of attenuation in it, or two well-separated low-gain
+      antennas.'
+    generate_options: qt_gui
+    id: aj_command_ladder_usrp
+    output_language: python
+    run: 'True'
+    title: AJ Command Ladder - USRP loopback
+  states:
+    coordinate: [8, 8]
+    rotation: 0
+    state: enabled
+blocks:
+- name: level
+  id: parameter
+  parameters:
+    alias: ''
+    comment: 'Feature level 0-6. A launch parameter and not a live control: each
+      level changes which processing stages exist, and a running flowgraph cannot be
+      rewired. Relaunch to change it.
+
+      Level 6 computes an LO schedule but does not apply it to the radio -- wiring a
+      TimedRetuner to a USRP is application work GRC cannot express -- so on hardware
+      it behaves as level 5.'
+    hide: none
+    label: Feature Level (0-6)
+    short_id: l
+    type: intx
+    value: '0'
+  states:
+    coordinate: [8, 84]
+    rotation: 0
+    state: enabled
+- name: import_gpsk
+  id: import
+  parameters:
+    alias: ''
+    comment: ''
+    imports: from gpsk_comms.levels import LEVEL_NAMES, profile
+  states:
+    coordinate: [192, 12]
+    rotation: 0
+    state: enabled
+- name: import_key
+  id: import
+  parameters:
+    alias: ''
+    comment: ''
+    imports: from gpsk_comms.security import generate_master_key
+  states:
+    coordinate: [192, 76]
+    rotation: 0
+    state: enabled
+- name: import_math
+  id: import
+  parameters:
+    alias: ''
+    comment: ''
+    imports: import math
+  states:
+    coordinate: [192, 140]
+    rotation: 0
+    state: enabled
+- name: master_key
+  id: variable
+  parameters:
+    comment: 'Generated per run. Both ends live in this one process, so unlike the
+      two-machine flowgraphs there is nothing to distribute and no key file to keep
+      in step -- which removes a whole class of failure from a hardware bring-up.
+      Ignored at levels 0 and 1, which need no key at all.'
+    value: generate_master_key()
+  states:
+    coordinate: [8, 372]
+    rotation: 0
+    state: enabled
+- name: samp_rate
+  id: variable
+  parameters:
+    comment: 'The chip rate. Both the transmitter and the whole receive chain are
+      Python in this one process, contending for one GIL, so the budget here is
+      tighter than in either single-ended flowgraph. A USRP will not wait: exceed it
+      and you get overruns and underruns rather than graceful slowdown.'
+    value: '500000'
+  states:
+    coordinate: [8, 156]
+    rotation: 0
+    state: enabled
+- name: spreading_factor
+  id: variable
+  parameters:
+    comment: ''
+    value: '127'
+  states:
+    coordinate: [144, 156]
+    rotation: 0
+    state: enabled
+- name: dwell_us
+  id: variable
+  parameters:
+    comment: 'Hop dwell. Both ends read the same host clock here, so the clock
+      agreement that levels 5 and 6 need across two machines is automatic.'
+    value: '200000'
+  states:
+    coordinate: [288, 156]
+    rotation: 0
+    state: enabled
+- name: repeat_rate
+  id: variable
+  parameters:
+    comment: 'Ignored from level 5 up, where one burst is sent per hop dwell.'
+    value: '8'
+  states:
+    coordinate: [416, 156]
+    rotation: 0
+    state: enabled
+- name: center_freq
+  id: variable
+  parameters:
+    comment: 'Transmit centre frequency. Check this is inside an allocation you are
+      permitted to radiate in before turning the gain up.'
+    value: '2440000000'
+  states:
+    coordinate: [552, 156]
+    rotation: 0
+    state: enabled
+- name: dc_offset_hz
+  id: variable
+  parameters:
+    comment: 'Retunes the receiver away from the transmitter so the radio''s own DC
+      offset and LO feedthrough do not land on the wanted signal, with a rotator
+      putting the signal back at baseband centre afterwards.
+
+      Set it to about 150000 for levels 0 to 2. Those levels are unspread: the whole
+      signal is a few kilohertz wide sitting exactly on the carrier, which on a
+      direct-conversion radio is precisely where the DC spike is.
+
+      Leave it at 0 for level 3 and above. Spreading fills the sampled band, so an
+      offset would push half the signal outside it -- and only about 1/N of a spread
+      signal''s energy sits at DC anyway, so the problem largely solves itself.'
+    value: '0'
+  states:
+    coordinate: [8, 300]
+    rotation: 0
+    state: enabled
+- name: rx_freq
+  id: variable
+  parameters:
+    comment: ''
+    value: center_freq + dc_offset_hz
+  states:
+    coordinate: [176, 300]
+    rotation: 0
+    state: enabled
+- name: device_addr
+  id: variable
+  parameters:
+    comment: 'One radio serves both ends. An empty string takes the first device
+      found; set a serial if you have more than one.'
+    value: '""'
+  states:
+    coordinate: [696, 156]
+    rotation: 0
+    state: enabled
+- name: tx_antenna
+  id: variable
+  parameters:
+    comment: ''
+    value: '"TX/RX"'
+  states:
+    coordinate: [848, 156]
+    rotation: 0
+    state: enabled
+- name: rx_antenna
+  id: variable
+  parameters:
+    comment: ''
+    value: '"RX2"'
+  states:
+    coordinate: [952, 156]
+    rotation: 0
+    state: enabled
+- name: bandwidth
+  id: variable
+  parameters:
+    comment: ''
+    value: samp_rate
+  states:
+    coordinate: [696, 228]
+    rotation: 0
+    state: enabled
+- name: clock_source
+  id: variable
+  parameters:
+    comment: 'One radio means one LO for both ends, so the carrier offset that
+      defeats a two-machine link at these symbol rates is zero here by construction.
+      That is the point of this flowgraph: it proves the RF chain without needing a
+      GPSDO first.'
+    value: '"internal"'
+  states:
+    coordinate: [848, 228]
+    rotation: 0
+    state: enabled
+- name: time_source
+  id: variable
+  parameters:
+    comment: ''
+    value: '"internal"'
+  states:
+    coordinate: [952, 228]
+    rotation: 0
+    state: enabled
+- name: level_summary
+  id: variable
+  parameters:
+    comment: ''
+    value: "'level %d (%s) -- %s' % (level, LEVEL_NAMES[level], ', '.join(profile(level).enabled)
+      or 'bare point-to-point link, no key')"
+  states:
+    coordinate: [552, 228]
+    rotation: 0
+    state: enabled
+- name: level_label
+  id: variable_qtgui_label
+  parameters:
+    comment: ''
+    formatter: None
+    gui_hint: 0,0,1,2
+    label: Running
+    type: string
+    value: level_summary
+  states:
+    coordinate: [416, 228]
+    rotation: 0
+    state: enabled
+- name: tx_gain
+  id: variable_qtgui_range
+  parameters:
+    comment: 'Live. Start at the bottom. With an attenuated cable between the ports
+      you need far less than you would over the air.'
+    gui_hint: 3,0,1,1
+    label: TX gain (dB)
+    min_len: '200'
+    orient: Qt.Horizontal
+    rangeType: float
+    start: '0'
+    step: '1'
+    stop: '89'
+    value: '30'
+    widget: counter_slider
+  states:
+    coordinate: [8, 228]
+    rotation: 0
+    state: enabled
+- name: rx_gain
+  id: variable_qtgui_range
+  parameters:
+    comment: 'Live. Raise until the signal clears the noise floor and no further --
+      past that the front end only moves closer to compression.'
+    gui_hint: 3,1,1,1
+    label: RX gain (dB)
+    min_len: '200'
+    orient: Qt.Horizontal
+    rangeType: float
+    start: '0'
+    step: '1'
+    stop: '76'
+    value: '30'
+    widget: counter_slider
+  states:
+    coordinate: [176, 228]
+    rotation: 0
+    state: enabled
+- name: jam_amplitude
+  id: variable_qtgui_range
+  parameters:
+    comment: 'Live. A digitally injected jammer, added to the received samples
+      rather than radiated -- so it tests the receiver without putting anything
+      extra on the air. Raise it until commands stop arriving to measure this
+      level''s jam margin.'
+    gui_hint: 4,0,1,1
+    label: Injected jammer amplitude
+    min_len: '200'
+    orient: Qt.Horizontal
+    rangeType: float
+    start: '0'
+    step: '0.001'
+    stop: '1'
+    value: '0'
+    widget: counter_slider
+  states:
+    coordinate: [8, 444]
+    rotation: 0
+    state: enabled
+- name: jam_offset_hz
+  id: variable_qtgui_range
+  parameters:
+    comment: 'Live. Where the injected tone sits relative to the wanted signal.'
+    gui_hint: 4,1,1,1
+    label: Injected jammer offset (Hz)
+    min_len: '200'
+    orient: Qt.Horizontal
+    rangeType: float
+    start: -samp_rate/2
+    step: '1000'
+    stop: samp_rate/2
+    value: '65000'
+    widget: counter_slider
+  states:
+    coordinate: [216, 444]
+    rotation: 0
+    state: enabled
+- name: keyboard
+  id: gpsk_comms_keyboard_command_source
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: 'Click this panel to give it focus, then hold W/A/S/D to drive and
+      press space to stop.'
+    gui_hint: 1,0,2,1
+  states:
+    coordinate: [8, 596]
+    rotation: 0
+    state: enabled
+- name: tx
+  id: gpsk_comms_aj_command_tx
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: 'Known limitation on hardware: this block paces its own chip stream
+      against the host clock, while the USRP sink pulls at the device clock. The two
+      differ by a few parts per million, so expect occasional underruns, and at
+      level 5 and above watch the diagnostics for clock_reanchor -- a stream that
+      has fallen behind the wall clock is following a hop schedule the receiver has
+      already moved past.'
+    dwell_us: dwell_us
+    hold_to_send: 'False'
+    interleave_depth: '17'
+    level: level
+    master_key: master_key
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    repeat_rate: repeat_rate
+    sample_rate: samp_rate
+    spreading_factor: spreading_factor
+  states:
+    coordinate: [280, 592]
+    rotation: 0
+    state: enabled
+- name: usrp_sink
+  id: uhd_usrp_sink
+  parameters:
+    affinity: ''
+    alias: ''
+    ant0: tx_antenna
+    bw0: bandwidth
+    center_freq0: center_freq
+    clock_source0: clock_source
+    comment: ''
+    dev_addr: device_addr
+    gain0: tx_gain
+    nchan: '1'
+    samp_rate: samp_rate
+    time_source0: time_source
+    type: fc32
+  states:
+    coordinate: [592, 568]
+    rotation: 0
+    state: enabled
+- name: usrp_source
+  id: uhd_usrp_source
+  parameters:
+    affinity: ''
+    alias: ''
+    ant0: rx_antenna
+    bw0: bandwidth
+    center_freq0: rx_freq
+    clock_source0: clock_source
+    comment: 'The same physical radio as the sink above. UHD shares one device
+      between a sink and a source in the same process, so both ends run off one LO
+      and one reference.'
+    dev_addr: device_addr
+    gain0: rx_gain
+    nchan: '1'
+    samp_rate: samp_rate
+    time_source0: time_source
+    type: fc32
+  states:
+    coordinate: [8, 740]
+    rotation: 0
+    state: enabled
+- name: derotate
+  id: blocks_rotator_cc
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: 'Undoes dc_offset_hz. The receiver has no carrier acquisition of its
+      own -- it tolerates only tens of hertz -- so the retune has to be put back
+      digitally and exactly, which it can be because the offset is a number we chose
+      rather than something to be estimated.'
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    phase_inc: 2*math.pi*dc_offset_hz/samp_rate
+    tag_inc_update: 'False'
+  states:
+    coordinate: [280, 744]
+    rotation: 0
+    state: enabled
+- name: jammer
+  id: analog_sig_source_x
+  parameters:
+    affinity: ''
+    alias: ''
+    amp: jam_amplitude
+    comment: ''
+    freq: jam_offset_hz
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    offset: '0'
+    phase: '0'
+    samp_rate: samp_rate
+    type: complex
+    waveform: analog.GR_COS_WAVE
+  states:
+    coordinate: [280, 872]
+    rotation: 0
+    state: enabled
+- name: combiner
+  id: blocks_add_xx
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    num_inputs: '2'
+    type: complex
+    vlen: '1'
+  states:
+    coordinate: [560, 780]
+    rotation: 0
+    state: enabled
+- name: rx
+  id: gpsk_comms_aj_command_rx
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: 'Same level, same key and same clock as the transmitter above, because
+      they are the same process. Anything that fails here is the radio or the
+      parameters, not synchronisation between two hosts.'
+    detection_threshold: '0.25'
+    dwell_us: dwell_us
+    grace_period: '0.0'
+    interleave_depth: '17'
+    level: level
+    master_key: master_key
+    sample_rate: samp_rate
+    spreading_factor: spreading_factor
+    watchdog_timeout: '2.0'
+  states:
+    coordinate: [712, 768]
+    rotation: 0
+    state: enabled
+- name: spectrum
+  id: qtgui_freq_sink_x
+  parameters:
+    affinity: ''
+    alias: ''
+    autoscale: 'False'
+    average: '0.2'
+    axislabels: 'True'
+    bw: samp_rate
+    comment: 'What the receiver actually processes, after the retune is undone and
+      the injected jammer is added. The radio''s DC spike appears here at
+      +dc_offset_hz, so with the offset set you can see the wanted signal sitting
+      clear of it.'
+    ctrlpanel: 'False'
+    fc: '0'
+    fftsize: '1024'
+    freqhalf: 'True'
+    grid: 'True'
+    gui_hint: 1,1,1,1
+    label: Relative Gain
+    label1: received
+    legend: 'True'
+    name: '"What the receiver sees"'
+    nconnections: '1'
+    norm_window: 'False'
+    showports: 'False'
+    tr_chan: '0'
+    tr_level: '0.0'
+    tr_mode: qtgui.TRIG_MODE_FREE
+    tr_tag: '""'
+    type: complex
+    units: dB
+    update_time: '0.10'
+    width1: '1'
+    wintype: window.WIN_BLACKMAN_hARRIS
+    ymax: '10'
+    ymin: '-110'
+  states:
+    coordinate: [880, 640]
+    rotation: 0
+    state: enabled
+- name: waterfall
+  id: qtgui_waterfall_sink_x
+  parameters:
+    affinity: ''
+    alias: ''
+    axislabels: 'True'
+    bw: samp_rate
+    color1: '0'
+    comment: 'From level 5 the bursts step between sub-channels once per dwell.
+      Seeing them move here, over a real radio, with commands still arriving, is the
+      confirmation that hopping works outside simulation.'
+    fc: '0'
+    fftsize: '1024'
+    freqhalf: 'True'
+    grid: 'False'
+    gui_hint: 2,1,1,1
+    int_max: '10'
+    int_min: '-110'
+    label1: ''
+    legend: 'True'
+    name: '"Waterfall -- hopping is visible here from level 5"'
+    nconnections: '1'
+    showports: 'False'
+    type: complex
+    update_time: '0.10'
+    wintype: window.WIN_BLACKMAN_hARRIS
+  states:
+    coordinate: [880, 808]
+    rotation: 0
+    state: enabled
+- name: command_debug
+  id: blocks_message_debug
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: 'Delivered commands, with link_state: ok, degraded, jammed or
+      no_signal. A timeout entry is the failsafe commanding a stop.'
+    en_uvec: 'True'
+    log_level: info
+  states:
+    coordinate: [944, 960]
+    rotation: 0
+    state: enabled
+- name: rx_diagnostics
+  id: blocks_message_debug
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: 'Per-frame events, and the instrument to watch while bringing this up.
+      auth_failure without valid_frame means bursts are being found but not
+      authenticated; nothing at all means the correlator is not finding bursts, so
+      look at the spectrum and the gains first.'
+    en_uvec: 'True'
+    log_level: info
+  states:
+    coordinate: [944, 1080]
+    rotation: 0
+    state: enabled
+- name: tx_diagnostics
+  id: blocks_message_debug
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: 'Quiet unless something is wrong. clock_reanchor means the transmitter
+      could not keep up with samp_rate.'
+    en_uvec: 'True'
+    log_level: info
+  states:
+    coordinate: [592, 960]
+    rotation: 0
+    state: enabled
+connections:
+- [keyboard, command, tx, command]
+- [tx, '0', usrp_sink, '0']
+- [tx, diagnostics, tx_diagnostics, print]
+- [usrp_source, '0', derotate, '0']
+- [derotate, '0', combiner, '0']
+- [jammer, '0', combiner, '1']
+- [combiner, '0', rx, '0']
+- [combiner, '0', spectrum, '0']
+- [combiner, '0', waterfall, '0']
+- [rx, command, command_debug, print]
+- [rx, diagnostics, rx_diagnostics, print]
+metadata:
+  file_format: 1
