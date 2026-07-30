@@ -6,3 +6,8 @@ __pycache__/
 # these staying secret; a committed key is a compromised key.
 *.key
 link.key
+
+# GRC writes the embedded-block module (<flowgraph>_<block>.py) next to the
+# .grc whenever the flowgraph is opened. It is regenerated from the .grc, so
+# it is build output rather than source.
+examples/sweep_jammer_chirp.py
