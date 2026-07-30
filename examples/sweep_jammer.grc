@@ -34,7 +34,7 @@ blocks:
     start: '1000000'
     step: '1000000'
     stop: '56000000'
-    value: '20000000'
+    value: '10000000'
     widget: counter_slider
   states:
     coordinate: [8, 84]

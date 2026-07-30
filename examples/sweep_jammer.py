@@ -163,8 +163,8 @@ def main():
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    parser.add_argument("--sample-rate", type=float, default=20e6,
-                        help="instantaneous swept bandwidth, in Hz (default 20e6)")
+    parser.add_argument("--sample-rate", type=float, default=10e6,
+                        help="instantaneous swept bandwidth, in Hz (default 10e6)")
     parser.add_argument("--speed", type=float, default=1000.0,
                         help="chirp sweeps per second (default 1000)")
     parser.add_argument("--bands", choices=sorted(BANDS), default="both",
