@@ -3,71 +3,118 @@ options:
     author: gpsk_comms
     catch_exceptions: 'True'
     category: Custom
-    description: 'Standalone sweep (chirp) jammer for two 100 MHz bands: 2392-2492 MHz
-      and 5190-5290 MHz. A linear chirp sweeps across the instantaneous sample_rate
-      window while the embedded block steps the USRP LO across each band and
-      alternates between the two, covering the full 2 x 100 MHz. Speed and sample rate
-      are live sliders. WARNING: this transmits -- only radiate in bands you are
-      licensed for, into a load or attenuator. Both default bands overlap licensed
-      services.'
+    cmake_opt: ''
+    comment: ''
+    copyright: ''
+    description: 'Standalone sweep (chirp) jammer for two 100 MHz bands: 2392-2492
+      MHz and 5190-5290 MHz. A linear chirp sweeps across the instantaneous sample_rate
+      window while the embedded block steps the USRP LO across each band and alternates
+      between the two, covering the full 2 x 100 MHz. Speed and sample rate are live
+      sliders. WARNING: this transmits -- only radiate in bands you are licensed for,
+      into a load or attenuator. Both default bands overlap licensed services.'
+    gen_cmake: 'On'
+    gen_linking: dynamic
     generate_options: qt_gui
+    hier_block_src_path: '.:'
     id: sweep_jammer
+    max_nouts: '0'
     output_language: python
+    placement: (0,0)
+    qt_qss_theme: ''
+    realtime_scheduling: ''
     run: 'True'
+    run_command: '{python} -u {filename}'
+    run_options: prompt
+    sizing_mode: fixed
+    thread_safe_setters: ''
     title: Sweep Jammer - two 100 MHz bands
+    window_size: (1000,1000)
   states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
     coordinate: [8, 8]
     rotation: 0
     state: enabled
+
 blocks:
-- name: samp_rate
-  id: variable_qtgui_range
+- name: antenna
+  id: variable
   parameters:
-    comment: 'Instantaneous swept bandwidth, and the USRP sample rate. Live, though a
-      real radio may glitch as it retunes its clocks -- for a jammer that does not
-      matter. Keep it inside what your device and USB/Ethernet link can sustain.'
-    gui_hint: 1,0,1,1
-    label: Sample rate (Hz)
-    min_len: '200'
-    orient: Qt.Horizontal
-    rangeType: float
-    start: '1000000'
-    step: '1000000'
-    stop: '56000000'
-    value: '10000000'
-    widget: counter_slider
+    comment: ''
+    value: '"TX/RX"'
   states:
-    coordinate: [8, 84]
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [392, 204]
     rotation: 0
     state: enabled
-- name: speed
-  id: variable_qtgui_range
+- name: bands
+  id: variable_qtgui_chooser
   parameters:
-    comment: 'Chirp sweeps per second across the sample_rate window. Higher dwells
-      less on each frequency; lower puts more energy per visit. Live.'
-    gui_hint: 1,1,1,1
-    label: Sweep speed (sweeps/s)
-    min_len: '200'
-    orient: Qt.Horizontal
-    rangeType: float
-    start: '100'
-    step: '100'
-    stop: '20000'
-    value: '1000'
-    widget: counter_slider
+    comment: Which allocation(s) to sweep. Changing this rebuilds the LO plan live.
+    gui_hint: 0,0,1,2
+    label: Band(s) to jam
+    label0: 2.4 GHz ISM (2392-2492 MHz)
+    label1: 5.2 GHz (5190-5290 MHz)
+    label2: Both bands
+    label3: 5210 MHz only (single channel)
+    label4: ''
+    labels: '[]'
+    num_opts: '4'
+    option0: '"2g4"'
+    option1: '"5g2"'
+    option2: '"both"'
+    option3: '"5210"'
+    option4: '4'
+    options: '[0, 1, 2, 3]'
+    orient: Qt.QVBoxLayout
+    type: string
+    value: '"2g4"'
+    widget: combo_box
   states:
-    coordinate: [200, 84]
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [776, 84]
+    rotation: 0
+    state: enabled
+- name: center_freq
+  id: variable
+  parameters:
+    comment: Initial LO frequency, set before the flowgraph starts. The embedded block
+      retunes the radio from here via command messages, so this only needs to be a
+      frequency the daughterboard can reach.
+    value: '2442000000'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [8, 204]
+    rotation: 0
+    state: enabled
+- name: device_addr
+  id: variable
+  parameters:
+    comment: Empty takes the first device found; set a serial to pick one.
+    value: '""'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [200, 204]
     rotation: 0
     state: enabled
 - name: dwell
   id: variable_qtgui_range
   parameters:
-    comment: 'Seconds the LO holds on each step before moving on. The full band
-      revisit time is dwell times the number of LO steps. Live.'
+    comment: Seconds the LO holds on each step before moving on. The full band revisit
+      time is dwell times the number of LO steps. Live.
     gui_hint: 2,0,1,1
     label: LO dwell (s)
     min_len: '200'
-    orient: Qt.Horizontal
+    orient: QtCore.Qt.Horizontal
     rangeType: float
     start: '0.005'
     step: '0.005'
@@ -75,217 +122,149 @@ blocks:
     value: '0.02'
     widget: counter_slider
   states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
     coordinate: [392, 84]
     rotation: 0
     state: enabled
 - name: gain
   id: variable_qtgui_range
   parameters:
-    comment: 'USRP transmit gain in dB. Live. Start low.'
+    comment: USRP transmit gain in dB. Live. Start low.
     gui_hint: 2,1,1,1
     label: TX gain (dB)
     min_len: '200'
-    orient: Qt.Horizontal
+    orient: QtCore.Qt.Horizontal
     rangeType: float
     start: '0'
     step: '1'
-    stop: '89'
-    value: '60'
+    stop: '100'
+    value: '95'
     widget: counter_slider
   states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
     coordinate: [584, 84]
     rotation: 0
     state: enabled
-- name: bands
-  id: variable_qtgui_chooser
+- name: samp_rate
+  id: variable_qtgui_range
   parameters:
-    comment: 'Which allocation(s) to sweep. Changing this rebuilds the LO plan live.'
-    gui_hint: 0,0,1,2
-    label: Band(s) to jam
-    label0: 2.4 GHz ISM (2392-2492 MHz)
-    label1: 5.2 GHz (5190-5290 MHz)
-    label2: Both bands
-    label3: 5210 MHz only (single channel)
-    labels: '[]'
-    num_opts: '4'
-    option0: '"2g4"'
-    option1: '"5g2"'
-    option2: '"both"'
-    option3: '"5210"'
-    options: '[0, 1, 2, 3]'
-    orient: Qt.QVBoxLayout
-    type: string
-    value: '"both"'
-    widget: combo_box
+    comment: Instantaneous swept bandwidth, and the USRP sample rate. Live, though
+      a real radio may glitch as it retunes its clocks -- for a jammer that does not
+      matter. Keep it inside what your device and USB/Ethernet link can sustain.
+    gui_hint: 1,0,1,1
+    label: Sample rate (Hz)
+    min_len: '200'
+    orient: QtCore.Qt.Horizontal
+    rangeType: float
+    start: '1000000'
+    step: '1000000'
+    stop: '10000000'
+    value: '5000000'
+    widget: counter_slider
   states:
-    coordinate: [776, 84]
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [8, 84]
     rotation: 0
     state: enabled
-- name: center_freq
-  id: variable
+- name: speed
+  id: variable_qtgui_range
   parameters:
-    comment: 'Initial LO frequency, set before the flowgraph starts. The embedded
-      block retunes the radio from here via command messages, so this only needs to
-      be a frequency the daughterboard can reach.'
-    value: '2442000000'
+    comment: Chirp sweeps per second across the sample_rate window. Higher dwells
+      less on each frequency; lower puts more energy per visit. Live.
+    gui_hint: 1,1,1,1
+    label: Sweep speed (sweeps/s)
+    min_len: '200'
+    orient: QtCore.Qt.Horizontal
+    rangeType: float
+    start: '1'
+    step: '1'
+    stop: '100'
+    value: '10'
+    widget: counter_slider
   states:
-    coordinate: [8, 204]
-    rotation: 0
-    state: enabled
-- name: device_addr
-  id: variable
-  parameters:
-    comment: 'Empty takes the first device found; set a serial to pick one.'
-    value: '""'
-  states:
-    coordinate: [200, 204]
-    rotation: 0
-    state: enabled
-- name: antenna
-  id: variable
-  parameters:
-    comment: ''
-    value: '"TX/RX"'
-  states:
-    coordinate: [392, 204]
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [200, 84]
     rotation: 0
     state: enabled
 - name: chirp
   id: epy_block
   parameters:
-    _source_code: |
-      """Chirp sweep jammer with LO stepping across two 100 MHz bands.
-
-      A linear chirp is generated across +/- samp_rate/2. The block also steps the
-      USRP local oscillator by publishing 'freq' command messages on its message
-      port; wire that port to a UHD Sink's command port and the LO tiles each band
-      and alternates between them, covering far more spectrum than one sample_rate
-      window. Sample rate, speed, dwell and band selection are all live: work()
-      rebuilds the LO plan whenever the sample rate or band selection changes.
-      """
-
-      import math
-      import time
-
-      import numpy as np
-      import pmt
-      from gnuradio import gr
-
-      # The two target bands as (low_hz, high_hz), matching the anti-jam link's
-      # 2442 MHz and 5240 MHz allocations.
-      # A zero-width entry is a single-frequency spot: one LO step, no hopping,
-      # with the chirp still spreading across the sample_rate window.
-      _BANDS = {
-          "2g4": [(2_392_000_000, 2_492_000_000)],
-          "5g2": [(5_190_000_000, 5_290_000_000)],
-          "both": [(2_392_000_000, 2_492_000_000), (5_190_000_000, 5_290_000_000)],
-          "5210": [(5_210_000_000, 5_210_000_000)],
-      }
-
-
-      class blk(gr.sync_block):
-          def __init__(self, samp_rate=20e6, speed=1000.0, dwell=0.02, bands="both"):
-              gr.sync_block.__init__(
-                  self, name="Chirp Sweep Jammer", in_sig=None,
-                  out_sig=[np.complex64],
-              )
-              self.samp_rate = float(samp_rate)
-              self.speed = float(speed)
-              self.dwell = float(dwell)
-              self.bands = bands
-              self.message_port_register_out(pmt.intern("command"))
-              self._count = 0
-              self._phase = 0.0
-              self._index = 0
-              self._next_step = 0.0
-              self._built_for = None
-              self._plan = [2_442_000_000.0]
-              # The first real plan build and LO tune happen in start(), once the
-              # command port is connected -- publishing here would go nowhere.
-
-          # A live QT control writes straight to the attribute (GRC generates
-          # e.g. self.chirp.samp_rate = ...), so no setters are needed: work()
-          # reads speed and dwell fresh each call, and rebuilds the LO plan
-          # whenever samp_rate or bands no longer match what it built for.
-          def _rebuild_plan(self):
-              centres = []
-              for low, high in _BANDS.get(self.bands, _BANDS["both"]):
-                  width = high - low
-                  steps = max(1, math.ceil(width / self.samp_rate))
-                  step_width = width / steps
-                  for k in range(steps):
-                      centres.append(low + step_width * (k + 0.5))
-              self._plan = centres
-              self._index = 0
-              self._built_for = (self.samp_rate, self.bands)
-              self._retune(self._plan[0])
-              self._next_step = time.monotonic() + self.dwell
-
-          def _retune(self, freq):
-              # Print the current centre frequency on every LO step, so the
-              # console shows the sweep walking across the bands.
-              print("[sweep jammer] centre frequency -> %.3f MHz" % (freq / 1e6),
-                    flush=True)
-              self.message_port_pub(
-                  pmt.intern("command"),
-                  pmt.cons(pmt.intern("freq"), pmt.from_double(float(freq))),
-              )
-
-          def start(self):
-              self._rebuild_plan()
-              return True
-
-          def work(self, input_items, output_items):
-              if (self.samp_rate, self.bands) != self._built_for:
-                  self._rebuild_plan()
-
-              out = output_items[0]
-              n = len(out)
-              period = max(2.0, self.samp_rate / self.speed)
-              idx = self._count + np.arange(n)
-              inst = (idx % period) / period - 0.5
-              phase = self._phase + 2.0 * np.pi * np.cumsum(inst)
-              out[:] = np.exp(1j * phase).astype(np.complex64)
-              self._phase = float(phase[-1] % (2.0 * np.pi))
-              self._count += n
-
-              if len(self._plan) > 1 and time.monotonic() >= self._next_step:
-                  self._index = (self._index + 1) % len(self._plan)
-                  self._retune(self._plan[self._index])
-                  self._next_step = time.monotonic() + self.dwell
-              return n
+    _source_code: "\"\"\"Chirp sweep jammer with LO stepping across two 100 MHz bands.\n\
+      \nA linear chirp is generated across +/- samp_rate/2. The block also steps the\n\
+      USRP local oscillator by publishing 'freq' command messages on its message\n\
+      port; wire that port to a UHD Sink's command port and the LO tiles each band\n\
+      and alternates between them, covering far more spectrum than one sample_rate\n\
+      window. Sample rate, speed, dwell and band selection are all live: work()\n\
+      rebuilds the LO plan whenever the sample rate or band selection changes.\n\"\
+      \"\"\n\nimport math\nimport time\n\nimport numpy as np\nimport pmt\nfrom gnuradio\
+      \ import gr\n\n# The two target bands as (low_hz, high_hz), matching the anti-jam\
+      \ link's\n# 2442 MHz and 5240 MHz allocations.\n_BANDS = {\n    \"2g4\": [(2_392_000_000,\
+      \ 2_492_000_000)],\n    \"5g2\": [(5_190_000_000, 5_290_000_000)],\n    \"both\"\
+      : [(2_392_000_000, 2_492_000_000), (5_190_000_000, 5_290_000_000)],\n    \"5210\": [(5_210_000_000, 5_210_000_000)],\n}\n\n\n\
+      class blk(gr.sync_block):\n    def __init__(self, samp_rate=20e6, speed=1000.0,\
+      \ dwell=0.02, bands=\"both\"):\n        gr.sync_block.__init__(\n          \
+      \  self, name=\"Chirp Sweep Jammer\", in_sig=None,\n            out_sig=[np.complex64],\n\
+      \        )\n        self.samp_rate = float(samp_rate)\n        self.speed =\
+      \ float(speed)\n        self.dwell = float(dwell)\n        self.bands = bands\n\
+      \        self.message_port_register_out(pmt.intern(\"command\"))\n        self._count\
+      \ = 0\n        self._phase = 0.0\n        self._index = 0\n        self._next_step\
+      \ = 0.0\n        self._built_for = None\n        self._plan = [2_442_000_000.0]\n\
+      \        # The first real plan build and LO tune happen in start(), once the\n\
+      \        # command port is connected -- publishing here would go nowhere.\n\n\
+      \    # A live QT control writes straight to the attribute (GRC generates\n \
+      \   # e.g. self.chirp.samp_rate = ...), so no setters are needed: work()\n \
+      \   # reads speed and dwell fresh each call, and rebuilds the LO plan\n    #\
+      \ whenever samp_rate or bands no longer match what it built for.\n    def _rebuild_plan(self):\n\
+      \        centres = []\n        for low, high in _BANDS.get(self.bands, _BANDS[\"\
+      both\"]):\n            width = high - low\n            steps = max(1, math.ceil(width\
+      \ / self.samp_rate))\n            step_width = width / steps\n            for\
+      \ k in range(steps):\n                centres.append(low + step_width * (k +\
+      \ 0.5))\n        self._plan = centres\n        self._index = 0\n        self._built_for\
+      \ = (self.samp_rate, self.bands)\n        self._retune(self._plan[0])\n    \
+      \    self._next_step = time.monotonic() + self.dwell\n\n    def _retune(self,\
+      \ freq):\n        # Print the current centre frequency on every LO step, so\
+      \ the\n        # console shows the sweep walking across the bands.\n       \
+      \ print(\"[sweep jammer] centre frequency -> %.3f MHz\" % (freq / 1e6),\n  \
+      \            flush=True)\n        self.message_port_pub(\n            pmt.intern(\"\
+      command\"),\n            pmt.cons(pmt.intern(\"freq\"), pmt.from_double(float(freq))),\n\
+      \        )\n\n    def start(self):\n        self._rebuild_plan()\n        return\
+      \ True\n\n    def work(self, input_items, output_items):\n        if (self.samp_rate,\
+      \ self.bands) != self._built_for:\n            self._rebuild_plan()\n\n    \
+      \    out = output_items[0]\n        n = len(out)\n        period = max(2.0,\
+      \ self.samp_rate / self.speed)\n        idx = self._count + np.arange(n)\n \
+      \       inst = (idx % period) / period - 0.5\n        phase = self._phase +\
+      \ 2.0 * np.pi * np.cumsum(inst)\n        out[:] = np.exp(1j * phase).astype(np.complex64)\n\
+      \        self._phase = float(phase[-1] % (2.0 * np.pi))\n        self._count\
+      \ += n\n\n        if len(self._plan) > 1 and time.monotonic() >= self._next_step:\n\
+      \            self._index = (self._index + 1) % len(self._plan)\n           \
+      \ self._retune(self._plan[self._index])\n            self._next_step = time.monotonic()\
+      \ + self.dwell\n        return n\n"
     affinity: ''
     alias: ''
     bands: bands
-    comment: 'Generates the chirp and, on its command port, the LO retune messages
-      that tile both bands. Wire command -> USRP Sink command.'
+    comment: Generates the chirp and, on its command port, the LO retune messages
+      that tile both bands. Wire command -> USRP Sink command.
     dwell: dwell
     maxoutbuf: '0'
     minoutbuf: '0'
     samp_rate: samp_rate
     speed: speed
   states:
+    _io_cache: ('Chirp Sweep Jammer', 'blk', [('samp_rate', '20000000.0'), ('speed',
+      '1000.0'), ('dwell', '0.02'), ('bands', "'both'")], [], [('0', 'complex', 1),
+      ('command', 'message', 1)], '', ['bands', 'dwell', 'samp_rate', 'speed'])
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
     coordinate: [8, 356]
-    rotation: 0
-    state: enabled
-- name: usrp_sink
-  id: uhd_usrp_sink
-  parameters:
-    affinity: ''
-    alias: ''
-    ant0: antenna
-    bw0: samp_rate
-    center_freq0: center_freq
-    comment: 'The command port receives freq retune messages from the chirp block, so
-      its centre frequency follows the LO plan. HARDWARE WARNING: only radiate into a
-      load or attenuator, in bands you are licensed to use.'
-    dev_addr: device_addr
-    gain0: gain
-    nchan: '1'
-    samp_rate: samp_rate
-    type: fc32
-  states:
-    coordinate: [560, 340]
     rotation: 0
     state: enabled
 - name: spectrum
@@ -293,12 +272,32 @@ blocks:
   parameters:
     affinity: ''
     alias: ''
+    alpha1: '1.0'
+    alpha10: '1.0'
+    alpha2: '1.0'
+    alpha3: '1.0'
+    alpha4: '1.0'
+    alpha5: '1.0'
+    alpha6: '1.0'
+    alpha7: '1.0'
+    alpha8: '1.0'
+    alpha9: '1.0'
     autoscale: 'False'
     average: '0.1'
     axislabels: 'True'
     bw: samp_rate
-    comment: 'The baseband chirp being transmitted at the current LO step. Spans the
-      full sample_rate window as the sweep runs.'
+    color1: '"blue"'
+    color10: '"dark blue"'
+    color2: '"red"'
+    color3: '"green"'
+    color4: '"black"'
+    color5: '"cyan"'
+    color6: '"magenta"'
+    color7: '"yellow"'
+    color8: '"dark red"'
+    color9: '"dark green"'
+    comment: The baseband chirp being transmitted at the current LO step. Spans the
+      full sample_rate window as the sweep runs.
     ctrlpanel: 'False'
     fc: '0'
     fftsize: '1024'
@@ -307,7 +306,18 @@ blocks:
     gui_hint: 3,0,1,1
     label: Relative Gain
     label1: chirp
+    label10: ''''''
+    label2: ''''''
+    label3: ''''''
+    label4: ''''''
+    label5: ''''''
+    label6: ''''''
+    label7: ''''''
+    label8: ''''''
+    label9: ''''''
     legend: 'True'
+    maxoutbuf: '0'
+    minoutbuf: '0'
     name: '"Transmitted chirp (baseband)"'
     nconnections: '1'
     norm_window: 'False'
@@ -320,11 +330,302 @@ blocks:
     units: dB
     update_time: '0.10'
     width1: '1'
+    width10: '1'
+    width2: '1'
+    width3: '1'
+    width4: '1'
+    width5: '1'
+    width6: '1'
+    width7: '1'
+    width8: '1'
+    width9: '1'
     wintype: window.WIN_BLACKMAN_hARRIS
     ymax: '10'
     ymin: '-110'
   states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
     coordinate: [560, 460]
+    rotation: 0
+    state: enabled
+- name: usrp_sink
+  id: uhd_usrp_sink
+  parameters:
+    affinity: ''
+    alias: ''
+    ant0: antenna
+    ant1: '"TX/RX"'
+    ant10: '"TX/RX"'
+    ant11: '"TX/RX"'
+    ant12: '"TX/RX"'
+    ant13: '"TX/RX"'
+    ant14: '"TX/RX"'
+    ant15: '"TX/RX"'
+    ant16: '"TX/RX"'
+    ant17: '"TX/RX"'
+    ant18: '"TX/RX"'
+    ant19: '"TX/RX"'
+    ant2: '"TX/RX"'
+    ant20: '"TX/RX"'
+    ant21: '"TX/RX"'
+    ant22: '"TX/RX"'
+    ant23: '"TX/RX"'
+    ant24: '"TX/RX"'
+    ant25: '"TX/RX"'
+    ant26: '"TX/RX"'
+    ant27: '"TX/RX"'
+    ant28: '"TX/RX"'
+    ant29: '"TX/RX"'
+    ant3: '"TX/RX"'
+    ant30: '"TX/RX"'
+    ant31: '"TX/RX"'
+    ant4: '"TX/RX"'
+    ant5: '"TX/RX"'
+    ant6: '"TX/RX"'
+    ant7: '"TX/RX"'
+    ant8: '"TX/RX"'
+    ant9: '"TX/RX"'
+    bw0: samp_rate
+    bw1: '0'
+    bw10: '0'
+    bw11: '0'
+    bw12: '0'
+    bw13: '0'
+    bw14: '0'
+    bw15: '0'
+    bw16: '0'
+    bw17: '0'
+    bw18: '0'
+    bw19: '0'
+    bw2: '0'
+    bw20: '0'
+    bw21: '0'
+    bw22: '0'
+    bw23: '0'
+    bw24: '0'
+    bw25: '0'
+    bw26: '0'
+    bw27: '0'
+    bw28: '0'
+    bw29: '0'
+    bw3: '0'
+    bw30: '0'
+    bw31: '0'
+    bw4: '0'
+    bw5: '0'
+    bw6: '0'
+    bw7: '0'
+    bw8: '0'
+    bw9: '0'
+    center_freq0: center_freq
+    center_freq1: '0'
+    center_freq10: '0'
+    center_freq11: '0'
+    center_freq12: '0'
+    center_freq13: '0'
+    center_freq14: '0'
+    center_freq15: '0'
+    center_freq16: '0'
+    center_freq17: '0'
+    center_freq18: '0'
+    center_freq19: '0'
+    center_freq2: '0'
+    center_freq20: '0'
+    center_freq21: '0'
+    center_freq22: '0'
+    center_freq23: '0'
+    center_freq24: '0'
+    center_freq25: '0'
+    center_freq26: '0'
+    center_freq27: '0'
+    center_freq28: '0'
+    center_freq29: '0'
+    center_freq3: '0'
+    center_freq30: '0'
+    center_freq31: '0'
+    center_freq4: '0'
+    center_freq5: '0'
+    center_freq6: '0'
+    center_freq7: '0'
+    center_freq8: '0'
+    center_freq9: '0'
+    clock_rate: 0e0
+    clock_source0: ''
+    clock_source1: ''
+    clock_source2: ''
+    clock_source3: ''
+    clock_source4: ''
+    clock_source5: ''
+    clock_source6: ''
+    clock_source7: ''
+    comment: 'The command port receives freq retune messages from the chirp block,
+      so its centre frequency follows the LO plan. HARDWARE WARNING: only radiate
+      into a load or attenuator, in bands you are licensed to use.'
+    dev_addr: device_addr
+    dev_args: ''
+    gain0: gain
+    gain1: '0'
+    gain10: '0'
+    gain11: '0'
+    gain12: '0'
+    gain13: '0'
+    gain14: '0'
+    gain15: '0'
+    gain16: '0'
+    gain17: '0'
+    gain18: '0'
+    gain19: '0'
+    gain2: '0'
+    gain20: '0'
+    gain21: '0'
+    gain22: '0'
+    gain23: '0'
+    gain24: '0'
+    gain25: '0'
+    gain26: '0'
+    gain27: '0'
+    gain28: '0'
+    gain29: '0'
+    gain3: '0'
+    gain30: '0'
+    gain31: '0'
+    gain4: '0'
+    gain5: '0'
+    gain6: '0'
+    gain7: '0'
+    gain8: '0'
+    gain9: '0'
+    gain_type0: default
+    gain_type1: default
+    gain_type10: default
+    gain_type11: default
+    gain_type12: default
+    gain_type13: default
+    gain_type14: default
+    gain_type15: default
+    gain_type16: default
+    gain_type17: default
+    gain_type18: default
+    gain_type19: default
+    gain_type2: default
+    gain_type20: default
+    gain_type21: default
+    gain_type22: default
+    gain_type23: default
+    gain_type24: default
+    gain_type25: default
+    gain_type26: default
+    gain_type27: default
+    gain_type28: default
+    gain_type29: default
+    gain_type3: default
+    gain_type30: default
+    gain_type31: default
+    gain_type4: default
+    gain_type5: default
+    gain_type6: default
+    gain_type7: default
+    gain_type8: default
+    gain_type9: default
+    len_tag_name: '""'
+    lo_export0: 'False'
+    lo_export1: 'False'
+    lo_export10: 'False'
+    lo_export11: 'False'
+    lo_export12: 'False'
+    lo_export13: 'False'
+    lo_export14: 'False'
+    lo_export15: 'False'
+    lo_export16: 'False'
+    lo_export17: 'False'
+    lo_export18: 'False'
+    lo_export19: 'False'
+    lo_export2: 'False'
+    lo_export20: 'False'
+    lo_export21: 'False'
+    lo_export22: 'False'
+    lo_export23: 'False'
+    lo_export24: 'False'
+    lo_export25: 'False'
+    lo_export26: 'False'
+    lo_export27: 'False'
+    lo_export28: 'False'
+    lo_export29: 'False'
+    lo_export3: 'False'
+    lo_export30: 'False'
+    lo_export31: 'False'
+    lo_export4: 'False'
+    lo_export5: 'False'
+    lo_export6: 'False'
+    lo_export7: 'False'
+    lo_export8: 'False'
+    lo_export9: 'False'
+    lo_source0: internal
+    lo_source1: internal
+    lo_source10: internal
+    lo_source11: internal
+    lo_source12: internal
+    lo_source13: internal
+    lo_source14: internal
+    lo_source15: internal
+    lo_source16: internal
+    lo_source17: internal
+    lo_source18: internal
+    lo_source19: internal
+    lo_source2: internal
+    lo_source20: internal
+    lo_source21: internal
+    lo_source22: internal
+    lo_source23: internal
+    lo_source24: internal
+    lo_source25: internal
+    lo_source26: internal
+    lo_source27: internal
+    lo_source28: internal
+    lo_source29: internal
+    lo_source3: internal
+    lo_source30: internal
+    lo_source31: internal
+    lo_source4: internal
+    lo_source5: internal
+    lo_source6: internal
+    lo_source7: internal
+    lo_source8: internal
+    lo_source9: internal
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    nchan: '1'
+    num_mboards: '1'
+    otw: ''
+    samp_rate: samp_rate
+    sd_spec0: ''
+    sd_spec1: ''
+    sd_spec2: ''
+    sd_spec3: ''
+    sd_spec4: ''
+    sd_spec5: ''
+    sd_spec6: ''
+    sd_spec7: ''
+    show_lo_controls: 'False'
+    start_time: '-1.0'
+    stream_args: ''
+    stream_chans: '[]'
+    sync: sync
+    time_source0: ''
+    time_source1: ''
+    time_source2: ''
+    time_source3: ''
+    time_source4: ''
+    time_source5: ''
+    time_source6: ''
+    time_source7: ''
+    type: fc32
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [560, 340]
     rotation: 0
     state: enabled
 - name: waterfall
@@ -332,12 +633,31 @@ blocks:
   parameters:
     affinity: ''
     alias: ''
+    alpha1: '1.0'
+    alpha10: '1.0'
+    alpha2: '1.0'
+    alpha3: '1.0'
+    alpha4: '1.0'
+    alpha5: '1.0'
+    alpha6: '1.0'
+    alpha7: '1.0'
+    alpha8: '1.0'
+    alpha9: '1.0'
     axislabels: 'True'
     bw: samp_rate
     color1: '0'
-    comment: 'The diagonal streaks are the chirp sweeping across the window over
-      time. The LO stepping is not visible here (this is baseband) but is happening
-      on the radio.'
+    color10: '0'
+    color2: '0'
+    color3: '0'
+    color4: '0'
+    color5: '0'
+    color6: '0'
+    color7: '0'
+    color8: '0'
+    color9: '0'
+    comment: The diagonal streaks are the chirp sweeping across the window over time.
+      The LO stepping is not visible here (this is baseband) but is happening on the
+      radio.
     fc: '0'
     fftsize: '1024'
     freqhalf: 'True'
@@ -346,7 +666,18 @@ blocks:
     int_max: '10'
     int_min: '-110'
     label1: ''
+    label10: ''
+    label2: ''
+    label3: ''
+    label4: ''
+    label5: ''
+    label6: ''
+    label7: ''
+    label8: ''
+    label9: ''
     legend: 'True'
+    maxoutbuf: '0'
+    minoutbuf: '0'
     name: '"Sweep over time"'
     nconnections: '1'
     showports: 'False'
@@ -354,13 +685,19 @@ blocks:
     update_time: '0.10'
     wintype: window.WIN_BLACKMAN_hARRIS
   states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
     coordinate: [560, 600]
     rotation: 0
     state: enabled
+
 connections:
-- [chirp, '0', usrp_sink, '0']
 - [chirp, '0', spectrum, '0']
+- [chirp, '0', usrp_sink, '0']
 - [chirp, '0', waterfall, '0']
 - [chirp, command, usrp_sink, command]
+
 metadata:
   file_format: 1
+  grc_version: 3.10.10.0
