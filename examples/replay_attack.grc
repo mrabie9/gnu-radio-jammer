@@ -1,0 +1,410 @@
+options:
+  parameters:
+    author: gpsk_comms
+    catch_exceptions: 'True'
+    category: Custom
+    cmake_opt: ''
+    comment: ''
+    copyright: ''
+    description: 'Standalone replay attack. A previously captured complex baseband
+      IQ recording (cf32 / gr_complex file) is looped out of a USRP. Centre frequency,
+      sample rate and the target band (2392-2492 MHz or 5190-5290 MHz) are live sliders.
+      The band chooser reframes the centre-frequency slider to the selected 100 MHz
+      allocation; pick the band before you press Run (see the note on the band block).
+      WARNING: this transmits. Only radiate in bands you are licensed for, into a load
+      or attenuator. Both default bands overlap licensed services -- replaying a
+      captured signal over the air may be illegal.'
+    gen_cmake: 'On'
+    gen_linking: dynamic
+    generate_options: qt_gui
+    hier_block_src_path: '.:'
+    id: replay_attack
+    max_nouts: '0'
+    output_language: python
+    placement: (0,0)
+    qt_qss_theme: ''
+    realtime_scheduling: ''
+    run: 'True'
+    run_command: '{python} -u {filename}'
+    run_options: prompt
+    sizing_mode: fixed
+    thread_safe_setters: ''
+    title: Replay Attack - captured IQ playback
+    window_size: (1000,1000)
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure:
+    coordinate: [8, 8]
+    rotation: 0
+    state: enabled
+
+blocks:
+- name: band
+  id: variable_qtgui_chooser
+  parameters:
+    comment: 'Target allocation. Each option is a (low_hz, high_hz) tuple; the
+      centre-frequency slider spans whichever band is selected here. Switching band
+      while running snaps the radio to that band''s centre frequency. NOTE: the
+      slider''s min/max endpoints are fixed when the flowgraph starts, so to slide
+      freely across the other band, restart after changing this.'
+    gui_hint: 0,0,1,2
+    label: Target band
+    num_opts: '2'
+    orient: Qt.QVBoxLayout
+    type: raw
+    value: (2392e6, 2492e6)
+    widget: combo_box
+    option0: (2392e6, 2492e6)
+    label0: 2.4 GHz (2392-2492 MHz)
+    option1: (5190e6, 5290e6)
+    label1: 5.2 GHz (5190-5290 MHz)
+    options: '[]'
+    labels: '[]'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure:
+    coordinate: [8, 84]
+    rotation: 0
+    state: enabled
+- name: center_freq
+  id: variable_qtgui_range
+  parameters:
+    comment: USRP transmit centre frequency, in Hz. The slider spans the band chosen
+      above. Live within the band.
+    gui_hint: 1,0,1,2
+    label: Centre frequency (Hz)
+    min_len: '200'
+    orient: QtCore.Qt.Horizontal
+    rangeType: float
+    start: band[0]
+    step: '1000000'
+    stop: band[1]
+    value: (band[0] + band[1]) / 2
+    widget: counter_slider
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure:
+    coordinate: [200, 84]
+    rotation: 0
+    state: enabled
+- name: samp_rate
+  id: variable_qtgui_range
+  parameters:
+    comment: USRP sample rate, in Hz. For time-correct playback set this to the rate
+      the file was recorded at. Live.
+    gui_hint: 2,0,1,1
+    label: Sample rate (Hz)
+    min_len: '200'
+    orient: QtCore.Qt.Horizontal
+    rangeType: float
+    start: '1000000'
+    step: '1000000'
+    stop: '56000000'
+    value: '20000000'
+    widget: counter_slider
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure:
+    coordinate: [392, 84]
+    rotation: 0
+    state: enabled
+- name: tx_gain
+  id: variable_qtgui_range
+  parameters:
+    comment: USRP transmit gain in dB. Live. Start low.
+    gui_hint: 2,1,1,1
+    label: TX gain (dB)
+    min_len: '200'
+    orient: QtCore.Qt.Horizontal
+    rangeType: float
+    start: '0'
+    step: '1'
+    stop: '89'
+    value: '50'
+    widget: counter_slider
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure:
+    coordinate: [584, 84]
+    rotation: 0
+    state: enabled
+- name: amplitude
+  id: variable_qtgui_range
+  parameters:
+    comment: Digital scale applied to the replayed samples before the radio. 1.0 is
+      the file as recorded. Live.
+    gui_hint: 3,0,1,2
+    label: Replay amplitude
+    min_len: '200'
+    orient: QtCore.Qt.Horizontal
+    rangeType: float
+    start: '0'
+    step: '0.01'
+    stop: '1'
+    value: '0.8'
+    widget: counter_slider
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure:
+    coordinate: [776, 84]
+    rotation: 0
+    state: enabled
+- name: capture_file
+  id: variable
+  parameters:
+    comment: Path to the captured complex baseband recording (interleaved 32-bit
+      float I/Q, i.e. gr_complex / cf32). Record it with a USRP Source into a File
+      Sink at the same sample rate you replay with.
+    value: '"/tmp/capture.cf32"'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure:
+    coordinate: [8, 204]
+    rotation: 0
+    state: enabled
+- name: device_addr
+  id: variable
+  parameters:
+    comment: Empty takes the first device found; set a serial to pick one.
+    value: '""'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure:
+    coordinate: [200, 204]
+    rotation: 0
+    state: enabled
+- name: file_source
+  id: blocks_file_source
+  parameters:
+    add_begin_tag: pmt.PMT_NIL
+    affinity: ''
+    alias: ''
+    begin_tag: pmt.PMT_NIL
+    comment: The captured recording, looped forever so the replay runs continuously.
+    file: capture_file
+    length: '0'
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    offset: '0'
+    repeat: 'True'
+    type: complex
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure:
+    coordinate: [8, 340]
+    rotation: 0
+    state: enabled
+- name: scale
+  id: blocks_multiply_const_vxx
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: Applies the replay amplitude slider.
+    const: amplitude
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    type: complex
+    vlen: '1'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure:
+    coordinate: [280, 348]
+    rotation: 0
+    state: enabled
+- name: usrp_sink
+  id: uhd_usrp_sink
+  parameters:
+    affinity: ''
+    alias: ''
+    ant0: '"TX/RX"'
+    bw0: samp_rate
+    center_freq0: center_freq
+    clock_rate: 0e0
+    clock_source0: ''
+    comment: ''
+    dev_addr: device_addr
+    dev_args: ''
+    gain0: tx_gain
+    gain_type0: default
+    len_tag_name: '""'
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    nchan: '1'
+    num_mboards: '1'
+    otw: ''
+    samp_rate: samp_rate
+    start_time: '-1.0'
+    stream_args: ''
+    stream_chans: '[]'
+    sync: sync
+    time_source0: ''
+    type: fc32
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure:
+    coordinate: [560, 332]
+    rotation: 0
+    state: enabled
+- name: spectrum
+  id: qtgui_freq_sink_x
+  parameters:
+    affinity: ''
+    alias: ''
+    alpha1: '1.0'
+    alpha10: '1.0'
+    alpha2: '1.0'
+    alpha3: '1.0'
+    alpha4: '1.0'
+    alpha5: '1.0'
+    alpha6: '1.0'
+    alpha7: '1.0'
+    alpha8: '1.0'
+    alpha9: '1.0'
+    autoscale: 'False'
+    average: '0.1'
+    axislabels: 'True'
+    bw: samp_rate
+    color1: '"blue"'
+    color10: '"dark blue"'
+    color2: '"red"'
+    color3: '"green"'
+    color4: '"black"'
+    color5: '"cyan"'
+    color6: '"magenta"'
+    color7: '"yellow"'
+    color8: '"dark red"'
+    color9: '"dark green"'
+    comment: Baseband spectrum of the recording being replayed.
+    ctrlpanel: 'False'
+    fc: center_freq
+    fftsize: '1024'
+    freqhalf: 'True'
+    grid: 'True'
+    gui_hint: 4,0,1,1
+    label: Relative Gain
+    label1: replay
+    label10: ''''''
+    label2: ''''''
+    label3: ''''''
+    label4: ''''''
+    label5: ''''''
+    label6: ''''''
+    label7: ''''''
+    label8: ''''''
+    label9: ''''''
+    legend: 'True'
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    name: '"Replayed signal (baseband)"'
+    nconnections: '1'
+    norm_window: 'False'
+    showports: 'False'
+    tr_chan: '0'
+    tr_level: '0.0'
+    tr_mode: qtgui.TRIG_MODE_FREE
+    tr_tag: '""'
+    type: complex
+    units: dB
+    update_time: '0.10'
+    width1: '1'
+    width10: '1'
+    width2: '1'
+    width3: '1'
+    width4: '1'
+    width5: '1'
+    width6: '1'
+    width7: '1'
+    width8: '1'
+    width9: '1'
+    wintype: window.WIN_BLACKMAN_hARRIS
+    ymax: '10'
+    ymin: '-110'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure:
+    coordinate: [560, 500]
+    rotation: 0
+    state: enabled
+- name: waterfall
+  id: qtgui_waterfall_sink_x
+  parameters:
+    affinity: ''
+    alias: ''
+    alpha1: '1.0'
+    alpha10: '1.0'
+    alpha2: '1.0'
+    alpha3: '1.0'
+    alpha4: '1.0'
+    alpha5: '1.0'
+    alpha6: '1.0'
+    alpha7: '1.0'
+    alpha8: '1.0'
+    alpha9: '1.0'
+    axislabels: 'True'
+    bw: samp_rate
+    color1: '0'
+    color10: '0'
+    color2: '0'
+    color3: '0'
+    color4: '0'
+    color5: '0'
+    color6: '0'
+    color7: '0'
+    color8: '0'
+    color9: '0'
+    comment: Replayed signal over time.
+    fc: center_freq
+    fftsize: '1024'
+    freqhalf: 'True'
+    grid: 'False'
+    gui_hint: 4,1,1,1
+    int_max: '10'
+    int_min: '-110'
+    label1: ''
+    label10: ''
+    label2: ''
+    label3: ''
+    label4: ''
+    label5: ''
+    label6: ''
+    label7: ''
+    label8: ''
+    label9: ''
+    legend: 'True'
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    name: '"Replay over time"'
+    nconnections: '1'
+    showports: 'False'
+    type: complex
+    update_time: '0.10'
+    wintype: window.WIN_BLACKMAN_hARRIS
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure:
+    coordinate: [560, 660]
+    rotation: 0
+    state: enabled
+
+connections:
+- [file_source, '0', scale, '0']
+- [scale, '0', usrp_sink, '0']
+- [scale, '0', spectrum, '0']
+- [scale, '0', waterfall, '0']
+
+metadata:
+  file_format: 1
+  grc_version: 3.10.10.0
