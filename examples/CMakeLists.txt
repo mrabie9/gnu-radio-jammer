@@ -7,6 +7,7 @@ install(
         aj_command_tx_uhd.grc
         aj_command_rx_uhd.grc
         sweep_jammer.grc
+        barrage_jammer.grc
         gmsk_command_tx_uhd.grc
         gmsk_keyboard_tx_uhd.grc
         gmsk_command_rx_uhd.grc

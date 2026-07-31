@@ -1,0 +1,196 @@
+options:
+  parameters:
+    author: gpsk_comms
+    catch_exceptions: 'True'
+    category: Custom
+    description: 'Standalone barrage jammer: wideband Gaussian noise radiated across
+      an adjustable bandwidth centred on an adjustable frequency. The noise fills the
+      whole sampled window, so the occupied bandwidth equals the sample rate, which is
+      driven directly by the Bandwidth slider. WARNING: this transmits -- only radiate
+      in bands you are licensed for, into a load or attenuator.'
+    generate_options: qt_gui
+    id: barrage_jammer
+    output_language: python
+    run: 'True'
+    title: Barrage Jammer
+  states:
+    coordinate: [8, 8]
+    rotation: 0
+    state: enabled
+blocks:
+- name: device_addr
+  id: variable
+  parameters:
+    comment: 'Empty takes the first device found; set a serial to pick one.'
+    value: '""'
+  states:
+    coordinate: [8, 484]
+    rotation: 0
+    state: enabled
+- name: antenna
+  id: variable
+  parameters:
+    comment: ''
+    value: '"TX/RX"'
+  states:
+    coordinate: [136, 484]
+    rotation: 0
+    state: enabled
+- name: center_freq
+  id: variable_qtgui_range
+  parameters:
+    comment: 'The transmit LO. Check this is inside an allocation you are permitted to
+      radiate in before turning the gain up. Live.'
+    gui_hint: 0,0,1,1
+    label: Centre frequency (Hz)
+    min_len: '200'
+    orient: Qt.Horizontal
+    rangeType: float
+    start: '2300000000'
+    step: '1000000'
+    stop: '5900000000'
+    value: '2442000000'
+    widget: counter_slider
+  states:
+    coordinate: [8, 84]
+    rotation: 0
+    state: enabled
+- name: bandwidth
+  id: variable_qtgui_range
+  parameters:
+    comment: 'Width of the noise, in Hz. This is the USRP sample rate: the noise fills
+      the whole sampled window, so the occupied bandwidth is exactly this value. Live,
+      though a real radio may glitch briefly as it changes rate. Keep it within what
+      the device and its link can sustain.'
+    gui_hint: 0,1,1,1
+    label: Bandwidth (Hz)
+    min_len: '200'
+    orient: Qt.Horizontal
+    rangeType: float
+    start: '200000'
+    step: '100000'
+    stop: '56000000'
+    value: '20000000'
+    widget: counter_slider
+  states:
+    coordinate: [200, 84]
+    rotation: 0
+    state: enabled
+- name: gain
+  id: variable_qtgui_range
+  parameters:
+    comment: 'USRP transmit gain in dB. Live. Start low.'
+    gui_hint: 1,0,1,1
+    label: TX gain (dB)
+    min_len: '200'
+    orient: Qt.Horizontal
+    rangeType: float
+    start: '0'
+    step: '1'
+    stop: '89'
+    value: '60'
+    widget: counter_slider
+  states:
+    coordinate: [392, 84]
+    rotation: 0
+    state: enabled
+- name: amplitude
+  id: variable_qtgui_range
+  parameters:
+    comment: 'Digital noise level before the radio. Gaussian noise has occasional
+      large peaks, so keep this well below 1 to avoid clipping the DAC; use TX gain for
+      output power. Live.'
+    gui_hint: 1,1,1,1
+    label: Noise amplitude
+    min_len: '200'
+    orient: Qt.Horizontal
+    rangeType: float
+    start: '0'
+    step: '0.01'
+    stop: '1'
+    value: '0.3'
+    widget: counter_slider
+  states:
+    coordinate: [584, 84]
+    rotation: 0
+    state: enabled
+- name: noise
+  id: analog_noise_source_x
+  parameters:
+    affinity: ''
+    alias: ''
+    amp: amplitude
+    comment: 'Complex white Gaussian noise -- the barrage waveform. Flat across the
+      whole sampled window.'
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    noise_type: analog.GR_GAUSSIAN
+    seed: '0'
+    type: complex
+  states:
+    coordinate: [8, 300]
+    rotation: 0
+    state: enabled
+- name: usrp_sink
+  id: uhd_usrp_sink
+  parameters:
+    affinity: ''
+    alias: ''
+    ant0: antenna
+    bw0: bandwidth
+    center_freq0: center_freq
+    comment: 'HARDWARE WARNING: only radiate into a load or attenuator, in bands you
+      are licensed to use. samp_rate is driven by the Bandwidth slider.'
+    dev_addr: device_addr
+    gain0: gain
+    nchan: '1'
+    samp_rate: bandwidth
+    type: fc32
+  states:
+    coordinate: [392, 276]
+    rotation: 0
+    state: enabled
+- name: spectrum
+  id: qtgui_freq_sink_x
+  parameters:
+    affinity: ''
+    alias: ''
+    autoscale: 'False'
+    average: '0.2'
+    axislabels: 'True'
+    bw: bandwidth
+    comment: 'The radiated noise. Centred on center_freq so the axis reads real RF
+      frequency; a flat plateau of width bandwidth is what a barrage looks like.'
+    ctrlpanel: 'False'
+    fc: center_freq
+    fftsize: '1024'
+    freqhalf: 'True'
+    grid: 'True'
+    gui_hint: 2,0,1,2
+    label: Relative Gain
+    label1: noise
+    legend: 'True'
+    name: '"Barrage noise"'
+    nconnections: '1'
+    norm_window: 'False'
+    showports: 'False'
+    tr_chan: '0'
+    tr_level: '0.0'
+    tr_mode: qtgui.TRIG_MODE_FREE
+    tr_tag: '""'
+    type: complex
+    units: dB
+    update_time: '0.10'
+    width1: '1'
+    wintype: window.WIN_BLACKMAN_hARRIS
+    ymax: '10'
+    ymin: '-110'
+  states:
+    coordinate: [392, 420]
+    rotation: 0
+    state: enabled
+connections:
+- [noise, '0', usrp_sink, '0']
+- [noise, '0', spectrum, '0']
+metadata:
+  file_format: 1
