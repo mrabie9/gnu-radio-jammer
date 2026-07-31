@@ -155,13 +155,27 @@ blocks:
     coordinate: [776, 84]
     rotation: 0
     state: enabled
+- name: import_os
+  id: import
+  parameters:
+    alias: ''
+    comment: ''
+    imports: import os, tempfile
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure:
+    coordinate: [392, 204]
+    rotation: 0
+    state: enabled
 - name: capture_file
   id: variable
   parameters:
     comment: Path to the captured complex baseband recording (interleaved 32-bit
-      float I/Q, i.e. gr_complex / cf32). Record it with a USRP Source into a File
-      Sink at the same sample rate you replay with.
-    value: '"/tmp/capture.cf32"'
+      float I/Q, i.e. gr_complex / cf32), in the system temp dir. Produced by
+      replay_capture.grc; must exist before you run this. Capture and replay at the
+      same sample rate.
+    value: os.path.join(tempfile.gettempdir(), "capture.cf32")
   states:
     bus_sink: false
     bus_source: false

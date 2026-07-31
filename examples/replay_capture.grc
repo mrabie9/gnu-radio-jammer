@@ -150,12 +150,25 @@ blocks:
     coordinate: [776, 84]
     rotation: 0
     state: enabled
+- name: import_os
+  id: import
+  parameters:
+    alias: ''
+    comment: ''
+    imports: import os, tempfile
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure:
+    coordinate: [392, 204]
+    rotation: 0
+    state: enabled
 - name: capture_file
   id: variable
   parameters:
-    comment: Path the recording is written to. Point replay_attack.grc at this same
-      file to transmit it back.
-    value: '"/tmp/capture.cf32"'
+    comment: Path the recording is written to (in the system temp dir, cross-platform).
+      Point replay_attack.grc at this same file to transmit it back.
+    value: os.path.join(tempfile.gettempdir(), "capture.cf32")
   states:
     bus_sink: false
     bus_source: false
