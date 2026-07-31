@@ -135,14 +135,15 @@ blocks:
 - name: record
   id: variable_qtgui_check_box
   parameters:
-    comment: Tick to write samples to the file; untick to stop. The file is truncated
-      when the flowgraph starts, so tick this only once you are on the signal.
+    comment: Ticked (default) writes samples to the file; untick to stop/pause.
+      Recording starts as soon as the flowgraph runs, and the file is truncated at
+      that point, so tune before you press Run if you want a clean capture.
     'false': 'False'
     gui_hint: 3,0,1,2
-    label: Record to file
+    label: Record to file (on by default)
     'true': 'True'
     type: bool
-    value: 'False'
+    value: 'True'
   states:
     bus_sink: false
     bus_source: false
